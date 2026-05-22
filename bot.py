@@ -233,6 +233,23 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ━━━━━━━━━━━━━━━━━━━━
     # ── ONCHAIN + SCREENER ──
     elif data == "sec_onchain":
+        # Obuna bormi tekshirish
+        has_access = await check_screener_access(user.id) or await check_premium_access(user.id)
+        if has_access:
+            # Obunachi — screener menyusi
+            await q.edit_message_text(
+                "🔗 <b>Onchain + Screener</b>\n\n"
+                "✅ Obunangiz faol!\n\n"
+                "Quyidagilardan birini tanlang:",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔎 Aksiya Screener",  callback_data="use_stock_screener")],
+                    [InlineKeyboardButton("🔍 Crypto Screener",  callback_data="use_crypto_screener")],
+                    [InlineKeyboardButton("🔗 Onchain Tahlil",   callback_data="use_onchain_report")],
+                    [InlineKeyboardButton("🏠 Bosh menyu",       callback_data="back")],
+                ])
+            )
+            return
         txt = (
             "🔗 <b>Onchain + Aksiya + Crypto Screener</b>\n\n"
             "Eng kuchli paket! Uch xizmat bir joyda.\n\n"
@@ -260,6 +277,50 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<b>Obuna bo'lasizmi?</b>"
         )
         await q.edit_message_text(txt, parse_mode="HTML", reply_markup=confirm_menu("onchain"))
+
+    # ── Screener tanlash (obunachilar uchun) ──
+    elif data == "use_stock_screener":
+        has_access = await check_screener_access(user.id) or await check_premium_access(user.id)
+        if not has_access:
+            await q.answer("❌ Obuna kerak!", show_alert=True)
+            return
+        context.user_data['screener_mode'] = 'stock'
+        await q.edit_message_text(
+            "🔎 <b>Aksiya Screener</b>\n\n"
+            "Aksiya ticker yuboring.\n"
+            "Masalan: <code>AAPL</code>, <code>TSLA</code>, <code>MSFT</code>\n\n"
+            "Ticker kiriting:",
+            parse_mode="HTML",
+            reply_markup=back_menu()
+        )
+
+    elif data == "use_crypto_screener":
+        has_access = await check_screener_access(user.id) or await check_premium_access(user.id)
+        if not has_access:
+            await q.answer("❌ Obuna kerak!", show_alert=True)
+            return
+        context.user_data['screener_mode'] = 'crypto'
+        await q.edit_message_text(
+            "🔍 <b>Crypto Screener</b>\n\n"
+            "Coin ticker yuboring.\n"
+            "Masalan: <code>BTC</code>, <code>ETH</code>, <code>SOL</code>\n\n"
+            "Ticker kiriting:",
+            parse_mode="HTML",
+            reply_markup=back_menu()
+        )
+
+    elif data == "use_onchain_report":
+        has_access = await check_screener_access(user.id) or await check_premium_access(user.id)
+        if not has_access:
+            await q.answer("❌ Obuna kerak!", show_alert=True)
+            return
+        await q.edit_message_text("⏳ Onchain ma'lumotlar olinmoqda...", parse_mode="HTML")
+        report = await asyncio.to_thread(format_onchain_report)
+        await q.edit_message_text(
+            report, parse_mode="HTML",
+            reply_markup=home_menu(),
+            disable_web_page_preview=True
+        )
 
     elif data == "confirm_onchain":
         await q.edit_message_text(
