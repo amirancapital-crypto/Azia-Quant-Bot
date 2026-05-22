@@ -102,7 +102,7 @@ def free_menu():
         [InlineKeyboardButton("🔍 Screener (1 ta/kun)", callback_data="free_screener")],
         [InlineKeyboardButton("📰 Yangiliklar",         callback_data="free_news")],
         [InlineKeyboardButton("🔢 Kalkulyatorlar",      callback_data="free_calc")],
-        [InlineKeyboardButton("📖 Glossariy",           callback_data="free_glossary")],
+        [InlineKeyboardButton("🏢 IPO Tracker",         callback_data="free_ipo")],
         [InlineKeyboardButton("📚 Kunlik Dars",         callback_data="free_lesson")],
         [InlineKeyboardButton("📅 Ekonomik Kalendar",   callback_data="free_calendar")],
         [InlineKeyboardButton("⬅️ Ortga",               callback_data="back")],
