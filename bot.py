@@ -461,15 +461,42 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif data == "free_news":
+        await q.edit_message_text("⏳ Yangiliklar olinmoqda...", parse_mode="HTML")
+        try:
+            import feedparser
+            news_txt = "📰 <b>Moliyaviy Yangiliklar</b>\n\n"
+
+            feeds = [
+                ("Reuters", "https://feeds.reuters.com/reuters/businessNews"),
+                ("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/"),
+                ("CoinTelegraph", "https://cointelegraph.com/rss"),
+            ]
+            count = 0
+            for src_name, feed_url in feeds:
+                try:
+                    feed = feedparser.parse(feed_url)
+                    for entry in feed.entries[:2]:
+                        title = (entry.get('title') or '')[:65]
+                        link  = entry.get('link') or ''
+                        if title and link:
+                            news_txt += f"• <a href='{link}'>{title}</a>\n  📰 {src_name}\n\n"
+                            count += 1
+                except: continue
+                if count >= 6: break
+
+            if count == 0:
+                news_txt += "• Yangilik topilmadi"
+        except:
+            news_txt = "📰 <b>Yangiliklar</b>\n\n• Hozircha ma'lumot yo'q"
+
         await q.edit_message_text(
-            "📰 <b>Yangiliklar</b>\n\n"
-            "Tez kunda qo'shiladi ⏳\n\n"
-            "Hozircha bozor holatini ko'ring:",
+            news_txt,
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📊 Bozor holati", callback_data="free_market")],
+                [InlineKeyboardButton("🔄 Yangilash", callback_data="free_news")],
                 [InlineKeyboardButton("⬅️ Ortga", callback_data="sec_free")],
-            ])
+            ]),
+            disable_web_page_preview=True
         )
 
     elif data == "free_calc":
@@ -533,13 +560,25 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif data == "free_glossary":
-        context.user_data['glossary_mode'] = True
+        # Glossariy olib tashlandi — IPO ga yo'naltirish
         await q.edit_message_text(
-            "📖 <b>Moliyaviy Atamalar Lug'ati</b>\n\n"
-            "Qidirmoqchi bo'lgan atamani yozing:\n"
-            "Masalan: <code>RSI</code>, <code>MACD</code>, <code>P/E</code>",
+            "📅 <b>IPO Tracker</b>\n\nYuklash...",
+            parse_mode="HTML"
+        )
+        await q.edit_message_text(
+            await get_ipo_data(context),
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=back_menu(),
+            disable_web_page_preview=True
+        )
+
+    elif data == "free_ipo":
+        await q.edit_message_text("⏳ IPO ma'lumotlari olinmoqda...", parse_mode="HTML")
+        await q.edit_message_text(
+            await get_ipo_data(context),
+            parse_mode="HTML",
+            reply_markup=back_menu(),
+            disable_web_page_preview=True
         )
 
     elif data == "free_lesson":
@@ -551,11 +590,69 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif data == "free_calendar":
+        await q.edit_message_text("⏳ Ekonomik kalendar olinmoqda...", parse_mode="HTML")
+        try:
+            from datetime import datetime, timedelta
+            from config import FMP_API_KEY, FMP_BASE
+            import requests as req
+
+            today = datetime.now().strftime("%Y-%m-%d")
+            next_week = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
+
+            resp = req.get(
+                f"{FMP_BASE}/economic_calendar",
+                params={"from": today, "to": next_week, "apikey": FMP_API_KEY},
+                timeout=10
+            )
+
+            cal_txt = f"📅 <b>Ekonomik Kalendar</b>\n"
+            cal_txt += f"📆 {today} — {next_week}\n"
+            cal_txt += "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            if resp.status_code == 200:
+                events = resp.json()
+                if events:
+                    # Muhim eventlarni filtrlash
+                    important = [e for e in events if e.get('impact') in ('High', 'Medium')][:10]
+                    if not important:
+                        important = events[:10]
+
+                    for e in important:
+                        date  = (e.get('date') or '')[:16]
+                        event = (e.get('event') or '')[:50]
+                        impact = e.get('impact') or ''
+                        country = e.get('country') or ''
+                        icon  = "🔴" if impact == 'High' else "🟡" if impact == 'Medium' else "⚪"
+                        cal_txt += f"{icon} <b>{event}</b>\n"
+                        cal_txt += f"   📅 {date} | {country}\n\n"
+                else:
+                    cal_txt += "• Bu hafta muhim voqea yo'q\n"
+            else:
+                cal_txt += (
+                    "📌 <b>Muhim sana va tadbirlar:</b>\n\n"
+                    "• Fed yig'ilishi — har 6 haftada\n"
+                    "• NFP (Non-Farm Payrolls) — har oy 1-juma\n"
+                    "• CPI (Inflyatsiya) — har oy o'rtasida\n"
+                    "• GDP — har chorak\n\n"
+                    "📎 To'liq kalendar: investing.com/economic-calendar"
+                )
+        except Exception as e:
+            print(f"[ERROR] Calendar: {e}")
+            cal_txt = (
+                "📅 <b>Ekonomik Kalendar</b>\n\n"
+                "📌 <b>Muhim sana va tadbirlar:</b>\n\n"
+                "• Fed yig'ilishi — har 6 haftada\n"
+                "• NFP — har oy 1-juma\n"
+                "• CPI — har oy o'rtasida\n"
+                "• GDP — har chorak\n\n"
+                "📎 To'liq: investing.com/economic-calendar"
+            )
+
         await q.edit_message_text(
-            "📅 <b>Ekonomik Kalendar</b>\n\n"
-            "Tez kunda qo'shiladi ⏳",
+            cal_txt,
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=back_menu(),
+            disable_web_page_preview=True
         )
 
     # ━━━━━━━━━━━━━━━━━━━━
@@ -871,6 +968,44 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             txt = "🤝 Hozircha affiliate yo'q."
         await q.edit_message_text(txt, parse_mode="HTML", reply_markup=admin_main_menu())
+
+    # ── Affiliate tasdiqlash/rad etish ──
+    elif data.startswith("aff_approve_"):
+        if not await is_admin(user):
+            await q.answer("❌ Ruxsat yo'q!", show_alert=True)
+            return
+        target_id = int(data.split("_")[2])
+        await approve_affiliate(target_id)
+        try:
+            await context.bot.send_message(
+                chat_id=target_id,
+                text=(
+                    "✅ <b>Affiliate so'rovingiz tasdiqlandi!</b>\n\n"
+                    "Endi havolangizni ulashishingiz mumkin.\n"
+                    "Botga /start yozing va Referral bo'limini oching."
+                ),
+                parse_mode="HTML",
+                reply_markup=home_menu()
+            )
+        except: pass
+        await q.edit_message_reply_markup(reply_markup=None)
+        await q.message.reply_text("✅ Affiliate tasdiqlandi!")
+
+    elif data.startswith("aff_reject_"):
+        if not await is_admin(user):
+            await q.answer("❌ Ruxsat yo'q!", show_alert=True)
+            return
+        target_id = int(data.split("_")[2])
+        try:
+            await context.bot.send_message(
+                chat_id=target_id,
+                text="❌ <b>Affiliate so'rovingiz rad etildi.</b>",
+                parse_mode="HTML",
+                reply_markup=home_menu()
+            )
+        except: pass
+        await q.edit_message_reply_markup(reply_markup=None)
+        await q.message.reply_text("❌ Affiliate rad etildi.")
 
     elif data == "admin_users":
         if not await is_admin(user):
@@ -1439,7 +1574,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── SCREENER (PULLIK) ──
     if udata.get('screener_mode') in ('stock', 'crypto'):
-        mode = udata.pop('screener_mode')
+        mode = udata.get('screener_mode')  # pop emas, saqlab qoladi
 
         has_access = await check_screener_access(user.id) or await check_premium_access(user.id)
         if not has_access:
@@ -1465,16 +1600,25 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if result:
             await save_search(user.id, ticker, t_type)
+            # Yana ticker kiritish uchun eslatma
+            next_hint = "Boshqa aksiya ticker kiriting yoki:" if mode == 'stock' else "Boshqa coin ticker kiriting yoki:"
             await update.message.reply_text(
                 result,
                 parse_mode="HTML",
-                reply_markup=screener_action_menu(ticker, t_type),
+                reply_markup=InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("🔔 Ogohlantirish", callback_data=f"alert_set_{t_type}_{ticker}"),
+                        InlineKeyboardButton("📌 Portfelga", callback_data=f"portfolio_add_{t_type}_{ticker}"),
+                    ],
+                    [InlineKeyboardButton("🏠 Bosh menyu", callback_data="back")],
+                ]),
                 disable_web_page_preview=True
             )
+            # Mode saqlanadi — keyingi ticker uchun
         else:
             await update.message.reply_text(
                 f"❌ <b>{ticker}</b> topilmadi.\n\n"
-                f"{'Ticker' if mode == 'stock' else 'CoinGecko ID yoki ticker'}ni to'g'ri kiriting.\n"
+                f"{'Ticker' if mode == 'stock' else 'Ticker yoki CoinGecko ID'}ni to'g'ri kiriting.\n"
                 f"Misol: {'AAPL, TSLA, MSFT' if mode == 'stock' else 'BTC, ETH, SOL'}",
                 parse_mode="HTML",
                 reply_markup=back_menu()
@@ -1653,6 +1797,53 @@ async def get_bot_username(context):
         return bot.username
     except:
         return "AziaQuantBot"
+
+
+async def get_ipo_data(context=None) -> str:
+    """FMP API orqali IPO ma'lumotlari"""
+    try:
+        from datetime import datetime, timedelta
+        import requests as req
+        from config import FMP_API_KEY, FMP_BASE
+
+        today     = datetime.now().strftime("%Y-%m-%d")
+        next_month = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+
+        resp = req.get(
+            f"{FMP_BASE}/ipo_calendar",
+            params={"from": today, "to": next_month, "apikey": FMP_API_KEY},
+            timeout=10
+        )
+
+        txt = f"🏢 <b>IPO Tracker</b>\n"
+        txt += f"📆 Keyingi 30 kun\n"
+        txt += "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        if resp.status_code == 200:
+            ipos = resp.json()
+            if ipos:
+                for ipo in ipos[:8]:
+                    company = ipo.get('company') or 'N/A'
+                    symbol  = ipo.get('symbol') or ''
+                    date    = ipo.get('date') or ''
+                    price   = ipo.get('priceRange') or ipo.get('price') or 'N/A'
+                    exchange= ipo.get('exchange') or ''
+                    txt += f"🏢 <b>{company}</b> ({symbol})\n"
+                    txt += f"   📅 {date} | {exchange}\n"
+                    txt += f"   💰 Narx: {price}\n\n"
+            else:
+                txt += "• Yaqin orada IPO yo'q\n"
+        else:
+            txt += (
+                "• Ma'lumot olishda xatolik\n\n"
+                "📎 To'liq IPO ro'yxati:\n"
+                "nasdaq.com/market-activity/ipos"
+            )
+
+        return txt
+    except Exception as e:
+        print(f"[ERROR] IPO data: {e}")
+        return "🏢 <b>IPO Tracker</b>\n\n• Ma'lumot olishda xatolik"
 
 
 def get_daily_lesson():
@@ -2066,7 +2257,6 @@ def main():
     if app.job_queue:
         app.job_queue.run_repeating(check_expired,    interval=3600,  first=60)
         app.job_queue.run_repeating(check_alerts,     interval=300,   first=30)
-        app.job_queue.run_repeating(monitor_onchain,  interval=21600, first=300)
 
     print("[SUCCESS] Azia Quant Bot ishga tushdi! 🚀")
     app.run_polling(allowed_updates=["message", "callback_query"])
