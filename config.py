@@ -180,6 +180,8 @@ ETHERSCAN_KEY   = os.environ.get("ETHERSCAN_KEY", "")
 CLAUDE_API_KEY  = os.environ.get("CLAUDE_API_KEY", "")
 OPENAI_API_KEY  = os.environ.get("OPENAI_API_KEY", "")
 HALAL_API_KEY   = os.environ.get("HALAL_TERMINAL_KEY", "")
+FMP_API_KEY     = os.environ.get("FMP_API_KEY", "oXP5gpgNVIZpzRyDSNXLoVwRnACXmptw")
+FMP_BASE        = "https://financialmodelingprep.com/api/v3"
 
 # ===================== WELCOME MATNI =====================
 WELCOME_TEXT = """🌟 <b>Assalomu alaykum!</b>
