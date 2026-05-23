@@ -47,6 +47,7 @@ from database import (
     add_watchlist, get_watchlist, remove_watchlist,
     save_search, get_search_history,
     get_stats, get_all_users, cancel_subscription,
+    save_user, get_non_subscribers, get_all_bot_users,
 )
 from keyboards import (
     main_menu, back_menu, home_menu, confirm_menu,
@@ -90,20 +91,33 @@ async def is_admin(user) -> bool:
     return user.id in admin_ids
 
 
-async def send_payment_info(query, section_name, price, dur_label, sub_id, sub_type):
+async def send_payment_info(query, section_name, price, dur_label, sub_id, sub_type, discount=0):
     """To'lov ma'lumotlarini yuborish"""
+    final_price = price * (1 - discount / 100) if discount > 0 else price
+
+    price_txt = f"${final_price:.0f}"
+    if discount > 0:
+        price_txt = f"~~${price}~~ → <b>${final_price:.0f}</b> ({discount}% chegirma 🎉)"
+
     txt = (
         f"💳 <b>To'lov ma'lumotlari</b>\n\n"
         f"📦 Bo'lim: <b>{section_name}</b>\n"
         f"⏱ Muddat: <b>{dur_label}</b>\n"
-        f"💰 Summa: <b>${price}</b>\n\n"
+        f"💰 Summa: {price_txt}\n\n"
         f"🏦 <b>Karta raqami:</b>\n"
         f"<code>{CARD_NUMBER}</code>\n"
         f"👤 <b>Karta egasi:</b> {CARD_OWNER}\n\n"
         f"✅ To'lovni amalga oshirgach, "
         f"<b>to'lov cheki rasmini</b> shu chatga yuboring. 👇"
     )
-    await query.edit_message_text(txt, parse_mode="HTML", reply_markup=back_menu())
+
+    # Promo kod tugmasi
+    markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🎟 Promo kod bormi?", callback_data=f"promo_{sub_type}_{sub_id}_{price}")],
+        [InlineKeyboardButton("⬅️ Ortga", callback_data="back")],
+    ]) if discount == 0 else back_menu()
+
+    await query.edit_message_text(txt, parse_mode="HTML", reply_markup=markup)
 
 
 # ===================== START =====================
@@ -114,6 +128,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Admin tekshirish
     if user.username and user.username.lstrip('@') == ADMIN_USERNAME:
         await save_admin_id(user.id)
+
+    # Foydalanuvchini saqlash
+    await save_user(user.id, user.username, user.full_name)
 
     # Referral tekshirish
     args = context.args
@@ -592,60 +609,47 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "free_calendar":
         await q.edit_message_text("⏳ Ekonomik kalendar olinmoqda...", parse_mode="HTML")
         try:
-            from datetime import datetime, timedelta
-            from config import FMP_API_KEY, FMP_BASE
-            import requests as req
-
-            today = datetime.now().strftime("%Y-%m-%d")
-            next_week = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
-
-            resp = req.get(
-                f"{FMP_BASE}/economic_calendar",
-                params={"from": today, "to": next_week, "apikey": FMP_API_KEY},
-                timeout=10
-            )
-
-            cal_txt = f"📅 <b>Ekonomik Kalendar</b>\n"
-            cal_txt += f"📆 {today} — {next_week}\n"
+            import feedparser
+            cal_txt = "📅 <b>Ekonomik Kalendar</b>\n"
             cal_txt += "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-            if resp.status_code == 200:
-                events = resp.json()
-                if events:
-                    # Muhim eventlarni filtrlash
-                    important = [e for e in events if e.get('impact') in ('High', 'Medium')][:10]
-                    if not important:
-                        important = events[:10]
-
-                    for e in important:
-                        date  = (e.get('date') or '')[:16]
-                        event = (e.get('event') or '')[:50]
-                        impact = e.get('impact') or ''
-                        country = e.get('country') or ''
-                        icon  = "🔴" if impact == 'High' else "🟡" if impact == 'Medium' else "⚪"
-                        cal_txt += f"{icon} <b>{event}</b>\n"
-                        cal_txt += f"   📅 {date} | {country}\n\n"
-                else:
-                    cal_txt += "• Bu hafta muhim voqea yo'q\n"
-            else:
+            # Investing.com RSS
+            try:
+                feed = feedparser.parse("https://www.investing.com/rss/news_25.rss")
+                count = 0
+                for entry in feed.entries[:5]:
+                    title = (entry.get('title') or '')[:65]
+                    link  = entry.get('link') or ''
+                    if title and link:
+                        cal_txt += f"• <a href='{link}'>{title}</a>\n\n"
+                        count += 1
+                if count == 0:
+                    raise Exception("No entries")
+            except:
                 cal_txt += (
-                    "📌 <b>Muhim sana va tadbirlar:</b>\n\n"
+                    "📌 <b>Muhim voqealar:</b>\n\n"
                     "• Fed yig'ilishi — har 6 haftada\n"
-                    "• NFP (Non-Farm Payrolls) — har oy 1-juma\n"
+                    "• NFP — har oy 1-juma\n"
                     "• CPI (Inflyatsiya) — har oy o'rtasida\n"
-                    "• GDP — har chorak\n\n"
-                    "📎 To'liq kalendar: investing.com/economic-calendar"
+                    "• GDP — har chorak\n"
+                    "• PPI — har oy\n"
+                    "• Retail Sales — har oy\n\n"
                 )
+
+            cal_txt += (
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "📎 <a href='https://www.investing.com/economic-calendar/'>To'liq kalendar</a>"
+            )
         except Exception as e:
             print(f"[ERROR] Calendar: {e}")
             cal_txt = (
                 "📅 <b>Ekonomik Kalendar</b>\n\n"
-                "📌 <b>Muhim sana va tadbirlar:</b>\n\n"
+                "📌 <b>Muhim voqealar:</b>\n\n"
                 "• Fed yig'ilishi — har 6 haftada\n"
                 "• NFP — har oy 1-juma\n"
                 "• CPI — har oy o'rtasida\n"
                 "• GDP — har chorak\n\n"
-                "📎 To'liq: investing.com/economic-calendar"
+                "📎 <a href='https://www.investing.com/economic-calendar/'>To'liq kalendar</a>"
             )
 
         await q.edit_message_text(
@@ -947,7 +951,21 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🎟 <b>Promo Kod Yaratish</b>\n\n"
             "Quyidagi formatda yozing:\n"
             "<code>KOD chegirma_foizi max_foydalanish</code>\n\n"
-            "Misol: <code>AZIA20 20 10</code>",
+            "Misol: <code>QURBON50 50 1000</code>",
+            parse_mode="HTML",
+            reply_markup=back_menu()
+        )
+
+    elif data == "admin_broadcast_nonsub":
+        if not await is_admin(user):
+            await q.answer("❌ Ruxsat yo'q!", show_alert=True)
+            return
+        nonsubs = await get_non_subscribers()
+        context.user_data['admin_broadcast_nonsub'] = True
+        await q.edit_message_text(
+            f"📣 <b>Obuna Bo'lmaganlarga Xabar</b>\n\n"
+            f"Hozirda obuna bo'lmagan: <b>{len(nonsubs)} ta</b> foydalanuvchi\n\n"
+            f"Yubormoqchi bo'lgan xabarni yozing:",
             parse_mode="HTML",
             reply_markup=back_menu()
         )
@@ -1102,6 +1120,46 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML",
             reply_markup=back_menu()
         )
+
+    # ── PROMO KOD ──
+    elif data.startswith("promo_"):
+        parts    = data.split("_")
+        if parts[1] == "skip":
+            # Promodsiz to'lash
+            sub_type = parts[2]
+            sub_id   = int(parts[3])
+            price    = int(parts[4])
+            context.user_data['waiting_payment'] = True
+            context.user_data['sub_id']          = sub_id
+            context.user_data['sub_type']        = sub_type
+            await q.edit_message_text(
+                f"💳 <b>To'lov ma'lumotlari</b>\n\n"
+                f"💰 Summa: <b>${price}</b>\n\n"
+                f"🏦 <b>Karta raqami:</b>\n"
+                f"<code>{CARD_NUMBER}</code>\n"
+                f"👤 <b>Karta egasi:</b> {CARD_OWNER}\n\n"
+                f"✅ To'lovni amalga oshirgach, "
+                f"<b>to'lov cheki rasmini</b> shu chatga yuboring. 👇",
+                parse_mode="HTML",
+                reply_markup=back_menu()
+            )
+        else:
+            # Promo kod kiritish
+            sub_type = parts[1]
+            sub_id   = int(parts[2])
+            price    = int(parts[3])
+            context.user_data['promo_pending'] = {
+                'sub_type': sub_type,
+                'sub_id':   sub_id,
+                'price':    price,
+            }
+            await q.edit_message_text(
+                "🎟 <b>Promo Kod</b>\n\n"
+                "Promo kodingizni yozing:\n"
+                "Masalan: <code>QURBON50</code>",
+                parse_mode="HTML",
+                reply_markup=back_menu()
+            )
 
 
 # ===================== TASDIQLASH/RAD ETISH =====================
@@ -1336,6 +1394,53 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text    = update.message.text.strip()
     udata   = context.user_data
 
+    # ── Promo kod tekshirish ──
+    if udata.get('promo_pending'):
+        info     = udata.pop('promo_pending')
+        promo    = await check_promo_code(text.upper())
+        if not promo:
+            await update.message.reply_text(
+                "❌ <b>Promo kod noto'g'ri yoki muddati tugagan!</b>\n\n"
+                "Qaytadan urinib ko'ring yoki to'lovni davom ettiring:",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("💳 Promodsiz to'lash", callback_data=f"promo_skip_{info['sub_type']}_{info['sub_id']}_{info['price']}")],
+                    [InlineKeyboardButton("🏠 Bosh menyu", callback_data="back")],
+                ])
+            )
+            udata['promo_pending'] = info  # qayta saqlash
+            return
+
+        await use_promo_code(text.upper())
+        discount   = promo['discount_pct']
+        final_price = info['price'] * (1 - discount / 100)
+
+        # Sub type ga qarab nom olish
+        section_map = {
+            'channel':         SECTION_NAMES.get('signals', 'Signals'),
+            'screener':        SECTION_NAMES.get('screener', 'Screener'),
+            'onchain_screener': SECTION_NAMES.get('screener', 'Onchain + Screener'),
+            'premium':         SECTION_NAMES.get('premium', 'Premium'),
+        }
+        section_name = section_map.get(info['sub_type'], 'Obuna')
+
+        await update.message.reply_text(
+            f"✅ <b>Promo kod qabul qilindi!</b>\n\n"
+            f"🎟 Kod: <code>{text.upper()}</code>\n"
+            f"🎉 Chegirma: {discount}%\n"
+            f"💰 Asl narx: ${info['price']}\n"
+            f"💰 <b>Chegirmali narx: ${final_price:.0f}</b>\n\n"
+            f"📦 Bo'lim: {section_name}\n\n"
+            f"🏦 <b>Karta raqami:</b>\n"
+            f"<code>{CARD_NUMBER}</code>\n"
+            f"👤 <b>Karta egasi:</b> {CARD_OWNER}\n\n"
+            f"✅ To'lovni amalga oshirgach, "
+            f"<b>to'lov cheki rasmini</b> shu chatga yuboring. 👇",
+            parse_mode="HTML",
+            reply_markup=back_menu()
+        )
+        return
+
     # ── Signal tahrirlash (admin) ──
     if udata.get('editing_signal') and await is_admin(user):
         signal_id = udata.pop('editing_signal')
@@ -1357,8 +1462,32 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         users   = await get_all_users()
         success = 0
         failed  = 0
-        await update.message.reply_text(f"📢 Yuborilmoqda... ({len(users)} ta foydalanuvchi)")
+        await update.message.reply_text(f"📢 Yuborilmoqda... ({len(users)} ta obunachi)")
         for u in users:
+            try:
+                await context.bot.send_message(
+                    chat_id=u['user_id'],
+                    text=text,
+                    parse_mode="HTML"
+                )
+                success += 1
+                await asyncio.sleep(0.1)
+            except:
+                failed += 1
+        await update.message.reply_text(
+            f"✅ Yuborildi: {success} ta\n❌ Xato: {failed} ta",
+            reply_markup=admin_main_menu()
+        )
+        return
+
+    # ── Obuna bo'lmaganlarga xabar ──
+    if udata.get('admin_broadcast_nonsub') and await is_admin(user):
+        udata.pop('admin_broadcast_nonsub', None)
+        nonsubs = await get_non_subscribers()
+        success = 0
+        failed  = 0
+        await update.message.reply_text(f"📣 Yuborilmoqda... ({len(nonsubs)} ta foydalanuvchi)")
+        for u in nonsubs:
             try:
                 await context.bot.send_message(
                     chat_id=u['user_id'],
@@ -1800,50 +1929,58 @@ async def get_bot_username(context):
 
 
 async def get_ipo_data(context=None) -> str:
-    """FMP API orqali IPO ma'lumotlari"""
+    """RSS Feed orqali IPO ma'lumotlari"""
     try:
-        from datetime import datetime, timedelta
+        import feedparser
         import requests as req
-        from config import FMP_API_KEY, FMP_BASE
 
-        today     = datetime.now().strftime("%Y-%m-%d")
-        next_month = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
-
-        resp = req.get(
-            f"{FMP_BASE}/ipo_calendar",
-            params={"from": today, "to": next_month, "apikey": FMP_API_KEY},
-            timeout=10
-        )
-
-        txt = f"🏢 <b>IPO Tracker</b>\n"
-        txt += f"📆 Keyingi 30 kun\n"
+        txt = "🏢 <b>IPO Tracker</b>\n"
+        txt += "📆 Yaqinda kutilayotgan IPOlar\n"
         txt += "━━━━━━━━━━━━━━━━━━━━\n\n"
 
-        if resp.status_code == 200:
-            ipos = resp.json()
-            if ipos:
-                for ipo in ipos[:8]:
-                    company = ipo.get('company') or 'N/A'
-                    symbol  = ipo.get('symbol') or ''
-                    date    = ipo.get('date') or ''
-                    price   = ipo.get('priceRange') or ipo.get('price') or 'N/A'
-                    exchange= ipo.get('exchange') or ''
-                    txt += f"🏢 <b>{company}</b> ({symbol})\n"
-                    txt += f"   📅 {date} | {exchange}\n"
-                    txt += f"   💰 Narx: {price}\n\n"
-            else:
-                txt += "• Yaqin orada IPO yo'q\n"
-        else:
+        # NASDAQ IPO RSS
+        feeds = [
+            "https://www.renaissancecapital.com/review/IPOpipeline.html",
+            "https://feeds.finance.yahoo.com/rss/2.0/headline?s=IPO&region=US&lang=en-US",
+        ]
+
+        count = 0
+        for feed_url in feeds:
+            try:
+                feed = feedparser.parse(feed_url)
+                for entry in feed.entries[:6]:
+                    title = (entry.get('title') or '')[:65]
+                    link  = entry.get('link') or ''
+                    date  = entry.get('published', '')[:16]
+                    if title and link:
+                        txt += f"🏢 <a href='{link}'>{title}</a>\n"
+                        if date:
+                            txt += f"   📅 {date}\n"
+                        txt += "\n"
+                        count += 1
+                if count >= 4:
+                    break
+            except:
+                continue
+
+        if count == 0:
             txt += (
-                "• Ma'lumot olishda xatolik\n\n"
-                "📎 To'liq IPO ro'yxati:\n"
-                "nasdaq.com/market-activity/ipos"
+                "📌 <b>IPO haqida ma'lumot:</b>\n\n"
+                "Yaqin orada rejalashtirilgan IPOlar:\n\n"
+                "📎 To'liq ro'yxat:\n"
+                "• <a href='https://nasdaq.com/market-activity/ipos'>NASDAQ IPO</a>\n"
+                "• <a href='https://finance.yahoo.com/calendar/ipo'>Yahoo Finance IPO</a>"
             )
 
         return txt
     except Exception as e:
         print(f"[ERROR] IPO data: {e}")
-        return "🏢 <b>IPO Tracker</b>\n\n• Ma'lumot olishda xatolik"
+        return (
+            "🏢 <b>IPO Tracker</b>\n\n"
+            "📎 To'liq ro'yxat:\n"
+            "• <a href='https://nasdaq.com/market-activity/ipos'>NASDAQ IPO</a>\n"
+            "• <a href='https://finance.yahoo.com/calendar/ipo'>Yahoo Finance IPO</a>"
+        )
 
 
 def get_daily_lesson():
