@@ -116,7 +116,7 @@ async def send_payment_info(query, section_name, price, dur_label, sub_id, sub_t
 
     # Promo kod tugmasi
     markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🎟 Promo kod bormi?", callback_data=f"promo_{sub_type}_{sub_id}_{price}")],
+        [InlineKeyboardButton("🎟 Promo kod bormi?", callback_data=f"promo_{sub_type}_{sub_id}_{int(price)}")],
         [InlineKeyboardButton("⬅️ Ortga", callback_data="back")],
     ]) if discount == 0 else back_menu()
 
@@ -1261,10 +1261,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("promo_"):
         parts    = data.split("_")
         if parts[1] == "skip":
-            # Promodsiz to'lash
             sub_type = parts[2]
             sub_id   = int(parts[3])
-            price    = int(parts[4])
+            price    = int(float(parts[4]))
             context.user_data['waiting_payment'] = True
             context.user_data['sub_id']          = sub_id
             context.user_data['sub_type']        = sub_type
@@ -1280,10 +1279,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=back_menu()
             )
         else:
-            # Promo kod kiritish
             sub_type = parts[1]
             sub_id   = int(parts[2])
-            price    = int(parts[3])
+            price    = int(float(parts[3]))
             context.user_data['promo_pending'] = {
                 'sub_type': sub_type,
                 'sub_id':   sub_id,
