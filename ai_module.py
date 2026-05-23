@@ -45,8 +45,8 @@ def ask_ai(user_message: str, history: list = None) -> str:
         if history:
             for h in history[-6:]:
                 messages.append({
-                    "role": h["role"],
-                    "content": h["content"]
+                    "role":    h.get("role", "user"),
+                    "content": h.get("content", "")
                 })
 
         # Yangi savol
