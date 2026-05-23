@@ -158,11 +158,15 @@ def free_screener_result_menu(ticker, ticker_type):
 
 def alert_type_menu(ticker, ticker_type):
     """Ogohlantirish turi tanlash"""
+    again_cb = f"use_{ticker_type}_screener"
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("💰 Narx chegarasi",    callback_data=f"alert_price_{ticker_type}_{ticker}")],
         [InlineKeyboardButton("📊 RSI chegarasi",     callback_data=f"alert_rsi_{ticker_type}_{ticker}")],
         [InlineKeyboardButton("📈 Foiz o'zgarish",    callback_data=f"alert_pct_{ticker_type}_{ticker}")],
-        [InlineKeyboardButton("⬅️ Ortga",             callback_data="back")],
+        [
+            InlineKeyboardButton("⬅️ Ortga",      callback_data=again_cb),
+            InlineKeyboardButton("🏠 Bosh menyu", callback_data="back"),
+        ],
     ])
 
 
@@ -173,7 +177,10 @@ def alert_condition_menu(alert_type, ticker, ticker_type):
             InlineKeyboardButton("📈 Dan yuqori",  callback_data=f"alert_cond_above_{alert_type}_{ticker_type}_{ticker}"),
             InlineKeyboardButton("📉 Dan past",    callback_data=f"alert_cond_below_{alert_type}_{ticker_type}_{ticker}"),
         ],
-        [InlineKeyboardButton("⬅️ Ortga", callback_data="back")],
+        [
+            InlineKeyboardButton("⬅️ Ortga",      callback_data=f"alert_set_{ticker_type}_{ticker}"),
+            InlineKeyboardButton("🏠 Bosh menyu", callback_data="back"),
+        ],
     ])
 
 
