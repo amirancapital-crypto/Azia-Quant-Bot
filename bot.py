@@ -47,6 +47,7 @@ from database import (
     add_watchlist, get_watchlist, remove_watchlist,
     save_search, get_search_history,
     get_stats, get_all_users, cancel_subscription,
+    cancel_screener_subscription, cancel_premium_subscription,
     save_user, get_non_subscribers, get_all_bot_users,
     get_all_promos, delete_promo_code,
 )
@@ -63,6 +64,7 @@ from keyboards import (
 from screener_stock import get_stock_data
 from screener_crypto import get_crypto_data, get_coin_id
 from onchain import format_onchain_report, format_market_status
+from ai_module import ask_gemini
 
 
 # ===================== YORDAMCHI FUNKSIYALAR =====================
@@ -145,10 +147,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data['affiliate_code'] = affiliate_code
 
     context.user_data.clear()
+    admin = await is_admin(user)
     await update.message.reply_text(
         WELCOME_TEXT,
         parse_mode="HTML",
-        reply_markup=main_menu()
+        reply_markup=main_menu(is_admin=admin)
     )
 
 
@@ -186,14 +189,26 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ── BOSH MENYU ──
     if data == "back":
         context.user_data.clear()
+        admin = await is_admin(user)
         try:
             await q.edit_message_text(
-                WELCOME_TEXT, parse_mode="HTML", reply_markup=main_menu()
+                WELCOME_TEXT, parse_mode="HTML", reply_markup=main_menu(is_admin=admin)
             )
         except:
             await q.message.reply_text(
-                WELCOME_TEXT, parse_mode="HTML", reply_markup=main_menu()
+                WELCOME_TEXT, parse_mode="HTML", reply_markup=main_menu(is_admin=admin)
             )
+
+    # ── ADMIN PANEL (bosh menyudan) ──
+    elif data == "open_admin":
+        if not await is_admin(user):
+            await q.answer("❌ Ruxsat yo'q!", show_alert=True)
+            return
+        await q.edit_message_text(
+            "👨‍💼 <b>Admin Panel</b>",
+            parse_mode="HTML",
+            reply_markup=admin_main_menu()
+        )
 
     # ━━━━━━━━━━━━━━━━━━━━
     # ── SIGNALS ──
@@ -309,7 +324,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Masalan: <code>AAPL</code>, <code>TSLA</code>, <code>MSFT</code>\n\n"
             "Ticker kiriting:",
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Ortga", callback_data="sec_onchain")],
+            ])
         )
 
     elif data == "use_crypto_screener":
@@ -324,7 +341,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Masalan: <code>BTC</code>, <code>ETH</code>, <code>SOL</code>\n\n"
             "Ticker kiriting:",
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Ortga", callback_data="sec_onchain")],
+            ])
         )
 
     elif data == "use_onchain_report":
@@ -419,6 +438,57 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Tez kunda ishga tushiriladi! 🚀",
             parse_mode="HTML",
             reply_markup=back_menu()
+        )
+
+    # ── AI YORDAMCHI ──
+    elif data == "sec_ai":
+        await q.edit_message_text(
+            "🤖 <b>AI Moliyaviy Yordamchi</b>\n\n"
+            "Professional moliyaviy maslahatchi!\n\n"
+            "💬 <b>Nima so'rasangiz bo'ladi:</b>\n"
+            "• Aksiya va crypto tahlili\n"
+            "• Trading strategiyalari\n"
+            "• Risk menejment maslahati\n"
+            "• Moliyaviy atamalar tushuntirish\n"
+            "• Portfolio diversifikatsiya\n"
+            "• DeFi va Web3 haqida\n\n"
+            "⚡ Savolingizni yozing!",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("💬 Suhbatni boshlash", callback_data="ai_start")],
+                [InlineKeyboardButton("⬅️ Ortga", callback_data="back")],
+            ])
+        )
+
+    elif data == "ai_start":
+        context.user_data['ai_mode'] = True
+        context.user_data['ai_history'] = []
+        await q.edit_message_text(
+            "🤖 <b>AI Yordamchi</b>\n\n"
+            "Savolingizni yozing!\n\n"
+            "Misol:\n"
+            "• <i>AAPL ni tahlil qil</i>\n"
+            "• <i>BTC ga hozir kirsa bo'ladimi?</i>\n"
+            "• <i>Risk menejment nima?</i>\n"
+            "• <i>Portfolio qanday tuzish kerak?</i>",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🗑 Suhbatni tozalash", callback_data="ai_clear")],
+                [InlineKeyboardButton("⬅️ Ortga", callback_data="sec_ai")],
+            ])
+        )
+
+    elif data == "ai_clear":
+        context.user_data['ai_mode'] = True
+        context.user_data['ai_history'] = []
+        await q.edit_message_text(
+            "🤖 <b>AI Yordamchi</b>\n\n"
+            "✅ Suhbat tozalandi!\n\n"
+            "Yangi savol yozing:",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Ortga", callback_data="sec_ai")],
+            ])
         )
 
     # ━━━━━━━━━━━━━━━━━━━━
@@ -1434,6 +1504,38 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text    = update.message.text.strip()
     udata   = context.user_data
 
+    # ── AI Yordamchi ──
+    if udata.get('ai_mode'):
+        history = udata.get('ai_history', [])
+
+        # Typing indicator
+        await context.bot.send_chat_action(
+            chat_id=update.effective_chat.id,
+            action="typing"
+        )
+
+        # Gemini ga yuborish
+        response = await asyncio.to_thread(ask_gemini, text, history)
+
+        # Tarixga qo'shish
+        history.append({"role": "user",  "parts": [{"text": text}]})
+        history.append({"role": "model", "parts": [{"text": response}]})
+
+        # Oxirgi 10 ta xabar saqlash
+        if len(history) > 10:
+            history = history[-10:]
+        udata['ai_history'] = history
+
+        await update.message.reply_text(
+            f"🤖 {response}",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🗑 Tozalash", callback_data="ai_clear")],
+                [InlineKeyboardButton("🏠 Bosh menyu", callback_data="back")],
+            ])
+        )
+        return
+
     # ── Promo kod tekshirish ──
     if udata.get('promo_pending'):
         info     = udata.pop('promo_pending')
@@ -1572,14 +1674,46 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         udata.pop('admin_cancel_sub', None)
         try:
             target_user_id = int(text)
+
+            # Barcha obuna turlarini bekor qilish
             await cancel_subscription(target_user_id, "signals")
             await cancel_subscription(target_user_id, "onchain")
+            await cancel_subscription(target_user_id, "crypto_edu")
+            await cancel_subscription(target_user_id, "stock_edu")
+            await cancel_screener_subscription(target_user_id)
+            await cancel_premium_subscription(target_user_id)
+
+            # Kanallardan chiqarish
+            for section, channel_id in CHANNEL_IDS.items():
+                try:
+                    await context.bot.ban_chat_member(channel_id, target_user_id)
+                    await context.bot.unban_chat_member(channel_id, target_user_id)
+                except:
+                    pass
+
+            # Foydalanuvchiga xabar
+            try:
+                await context.bot.send_message(
+                    chat_id=target_user_id,
+                    text=(
+                        "❌ <b>Obunangiz bekor qilindi.</b>\n\n"
+                        "Savollar uchun: @" + ADMIN_USERNAME
+                    ),
+                    parse_mode="HTML"
+                )
+            except:
+                pass
+
             await update.message.reply_text(
-                f"✅ Foydalanuvchi {target_user_id} obunasi bekor qilindi.",
+                f"✅ Foydalanuvchi <code>{target_user_id}</code> barcha obunalari bekor qilindi.",
+                parse_mode="HTML",
                 reply_markup=admin_main_menu()
             )
-        except:
-            await update.message.reply_text("❌ ID noto'g'ri.", reply_markup=admin_main_menu())
+        except Exception as e:
+            await update.message.reply_text(
+                f"❌ Xato: {e}",
+                reply_markup=admin_main_menu()
+            )
         return
 
     # ── Affiliate ariza ──
@@ -1745,7 +1879,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── SCREENER (PULLIK) ──
     if udata.get('screener_mode') in ('stock', 'crypto'):
-        mode = udata.get('screener_mode')  # pop emas, saqlab qoladi
+        mode = udata.pop('screener_mode')  # O'chiriladi — chat to'lmasin
 
         has_access = await check_screener_access(user.id) or await check_premium_access(user.id)
         if not has_access:
@@ -1760,41 +1894,56 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         ticker = text.upper()
-        await update.message.reply_text(f"⏳ <b>{ticker}</b> tahlil qilinmoqda...", parse_mode="HTML")
+        msg = await update.message.reply_text(
+            f"⏳ <b>{ticker}</b> tahlil qilinmoqda...", parse_mode="HTML"
+        )
 
         if mode == 'stock':
             result = await asyncio.to_thread(get_stock_data, ticker, False)
             t_type = 'stock'
+            again_cb = "use_stock_screener"
         else:
             result = await asyncio.to_thread(get_crypto_data, ticker, False)
             t_type = 'crypto'
+            again_cb = "use_crypto_screener"
 
         if result:
             await save_search(user.id, ticker, t_type)
-            # Yana ticker kiritish uchun eslatma
-            next_hint = "Boshqa aksiya ticker kiriting yoki:" if mode == 'stock' else "Boshqa coin ticker kiriting yoki:"
+            await msg.delete()
             await update.message.reply_text(
                 result,
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup([
                     [
                         InlineKeyboardButton("🔔 Ogohlantirish", callback_data=f"alert_set_{t_type}_{ticker}"),
-                        InlineKeyboardButton("📌 Portfelga", callback_data=f"portfolio_add_{t_type}_{ticker}"),
+                        InlineKeyboardButton("📌 Portfelga",      callback_data=f"portfolio_add_{t_type}_{ticker}"),
                     ],
-                    [InlineKeyboardButton("🏠 Bosh menyu", callback_data="back")],
+                    [InlineKeyboardButton("🔄 Yana qidirish", callback_data=again_cb)],
+                    [InlineKeyboardButton("🏠 Bosh menyu",    callback_data="back")],
                 ]),
                 disable_web_page_preview=True
             )
-            # Mode saqlanadi — keyingi ticker uchun
         else:
+            await msg.delete()
             await update.message.reply_text(
                 f"❌ <b>{ticker}</b> topilmadi.\n\n"
                 f"{'Ticker' if mode == 'stock' else 'Ticker yoki CoinGecko ID'}ni to'g'ri kiriting.\n"
                 f"Misol: {'AAPL, TSLA, MSFT' if mode == 'stock' else 'BTC, ETH, SOL'}",
                 parse_mode="HTML",
-                reply_markup=back_menu()
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔄 Qayta urinish", callback_data=again_cb)],
+                    [InlineKeyboardButton("🏠 Bosh menyu",    callback_data="back")],
+                ])
             )
         return
+
+    # ── Hech qanday holat yo'q — bosh menyu ko'rsat ──
+    admin = await is_admin(user)
+    await update.message.reply_text(
+        WELCOME_TEXT,
+        parse_mode="HTML",
+        reply_markup=main_menu(is_admin=admin)
+    )
 
 
 # ── ONCHAIN ──
