@@ -52,7 +52,7 @@ from database import (
     get_all_promos, delete_promo_code,
 )
 from keyboards import (
-    main_menu, back_menu, home_menu, confirm_menu,
+    main_menu, back_menu, home_menu, confirm_menu, section_back_menu,
     signals_duration_menu, screener_duration_menu,
     admin_approve_menu, onchain_signal_menu,
     free_menu, calculator_menu,
@@ -637,7 +637,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<code>kirish_narxi stop_narxi maqsad_narxi</code>\n\n"
             "Misol: <code>100 90 130</code>",
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=section_back_menu('free_calc')
         )
 
     elif data == "calc_position":
@@ -648,7 +648,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<code>kapital risk_foizi kirish_narxi stop_narxi</code>\n\n"
             "Misol: <code>10000 2 100 90</code>",
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=section_back_menu('free_calc')
         )
 
     elif data == "calc_compound":
@@ -659,7 +659,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<code>boshlang'ich_summa oylik_foiz oylar</code>\n\n"
             "Misol: <code>1000 5 12</code>",
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=section_back_menu('free_calc')
         )
 
     elif data == "calc_breakeven":
@@ -670,7 +670,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<code>sotib_olish_narxi komissiya_foizi</code>\n\n"
             "Misol: <code>100 0.1</code>",
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=section_back_menu('free_calc')
         )
 
     elif data == "free_glossary":
@@ -691,7 +691,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(
             await get_ipo_data(context),
             parse_mode="HTML",
-            reply_markup=back_menu(),
+            reply_markup=section_back_menu('sec_free'),
             disable_web_page_preview=True
         )
 
@@ -972,7 +972,12 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"⏳ Kutilayotgan: ${pending:.0f}\n\n"
             f"💡 Har bir obunachidan {REFERRAL_PERCENT}% olasiz!"
         )
-        await q.edit_message_text(txt, parse_mode="HTML", reply_markup=back_menu())
+        await q.edit_message_text(
+            txt, parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Ortga", callback_data="referral_menu")]
+            ])
+        )
 
     elif data == "ref_affiliate":
         aff = await get_affiliate(user.id)
@@ -996,7 +1001,12 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"⏳ Admin tasdiqlashi kutilmoqda.\n\n"
                     f"Savollar uchun: @{ADMIN_USERNAME}"
                 )
-            await q.edit_message_text(txt, parse_mode="HTML", reply_markup=back_menu())
+            await q.edit_message_text(
+                txt, parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ Ortga", callback_data="referral_menu")]
+                ])
+            )
         else:
             aff_code = generate_code(10)
             context.user_data['aff_apply'] = True
@@ -1007,7 +1017,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "har bir obunachidan 20% komissiya olasiz!\n\n"
                 "Kanal/blog havolangizni yozing:",
                 parse_mode="HTML",
-                reply_markup=back_menu()
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ Ortga", callback_data="referral_menu")]
+                ])
             )
 
     # ━━━━━━━━━━━━━━━━━━━━
@@ -1040,7 +1052,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📢 <b>Barchaga Xabar</b>\n\n"
             "Yubormoqchi bo'lgan xabarni yozing:",
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=section_back_menu('open_admin')
         )
 
     elif data == "admin_promo":
@@ -1054,7 +1066,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "<code>KOD chegirma_foizi max_foydalanish</code>\n\n"
             "Misol: <code>QURBON50 50 1000</code>",
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=section_back_menu('open_admin')
         )
 
     elif data == "admin_broadcast_nonsub":
@@ -1068,7 +1080,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Hozirda obuna bo'lmagan: <b>{len(nonsubs)} ta</b> foydalanuvchi\n\n"
             f"Yubormoqchi bo'lgan xabarni yozing:",
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=section_back_menu('open_admin')
         )
 
     elif data == "admin_promo_list":
@@ -1165,13 +1177,39 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_reply_markup(reply_markup=None)
         await q.message.reply_text("❌ Affiliate rad etildi.")
 
+    elif data == "admin_all_users":
+        if not await is_admin(user):
+            await q.answer("❌ Ruxsat yo'q!", show_alert=True)
+            return
+        all_users = await get_all_bot_users()
+        non_subs  = await get_non_subscribers()
+        non_sub_ids = {u['user_id'] for u in non_subs}
+
+        txt = f"👤 <b>Barcha foydalanuvchilar ({len(all_users)} ta)</b>\n\n"
+        for u in all_users[:30]:
+            uid    = u.get('user_id', '')
+            uname  = f"@{u.get('username')}" if u.get('username') else "—"
+            fname  = u.get('full_name', '') or ''
+            status = "🆓" if uid in non_sub_ids else "✅"
+            txt   += f"{status} {fname} {uname}\n"
+
+        if len(all_users) > 30:
+            txt += f"\n... va yana {len(all_users) - 30} ta"
+
+        txt += f"\n\n✅ Obunachi | 🆓 Obuna bo'lmagan"
+
+        await q.edit_message_text(
+            txt, parse_mode="HTML",
+            reply_markup=section_back_menu('admin_stats')
+        )
+
     elif data == "admin_users":
         if not await is_admin(user):
             await q.answer("❌ Ruxsat yo'q!", show_alert=True)
             return
         users = await get_all_users()
         txt = f"👥 <b>Obunachlar ({len(users)} ta)</b>\n\n"
-        for u in users[:20]:  # Max 20 ta
+        for u in users[:20]:
             uname = f"@{u.get('username', '')}" if u.get('username') else "—"
             txt += f"• {u.get('full_name', '')} {uname}\n"
         if len(users) > 20:
@@ -1187,7 +1225,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ <b>Obunani Bekor Qilish</b>\n\n"
             "Foydalanuvchi ID sini yozing:",
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=section_back_menu('open_admin')
         )
 
     # ━━━━━━━━━━━━━━━━━━━━
