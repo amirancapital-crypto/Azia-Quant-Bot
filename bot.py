@@ -188,6 +188,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── BOSH MENYU ──
     if data == "back":
+        # ai_mode ni o'chirish
         context.user_data.clear()
         admin = await is_admin(user)
         try:
@@ -470,11 +471,33 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• <i>AAPL ni tahlil qil</i>\n"
             "• <i>BTC ga hozir kirsa bo'ladimi?</i>\n"
             "• <i>Risk menejment nima?</i>\n"
-            "• <i>Portfolio qanday tuzish kerak?</i>",
+            "• <i>Portfolio qanday tuzish kerak?</i>\n\n"
+            "💡 Suhbat davomli — oldingi savollar esda saqlanadi!",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🗑 Suhbatni tozalash", callback_data="ai_clear")],
-                [InlineKeyboardButton("⬅️ Ortga", callback_data="sec_ai")],
+                [InlineKeyboardButton("⬅️ Chiqish",           callback_data="ai_exit")],
+            ])
+        )
+
+    elif data == "ai_exit":
+        context.user_data.pop('ai_mode', None)
+        context.user_data.pop('ai_history', None)
+        await q.edit_message_text(
+            "🤖 <b>AI Moliyaviy Yordamchi</b>\n\n"
+            "Professional moliyaviy maslahatchi!\n\n"
+            "💬 <b>Nima so'rasangiz bo'ladi:</b>\n"
+            "• Aksiya va crypto tahlili\n"
+            "• Trading strategiyalari\n"
+            "• Risk menejment maslahati\n"
+            "• Moliyaviy atamalar tushuntirish\n"
+            "• Portfolio diversifikatsiya\n"
+            "• DeFi va Web3 haqida\n\n"
+            "⚡ Savolingizni yozing!",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("💬 Suhbatni boshlash", callback_data="ai_start")],
+                [InlineKeyboardButton("⬅️ Ortga",             callback_data="back")],
             ])
         )
 
@@ -1530,8 +1553,8 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🤖 {response}",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🗑 Tozalash", callback_data="ai_clear")],
-                [InlineKeyboardButton("🏠 Bosh menyu", callback_data="back")],
+                [InlineKeyboardButton("🗑 Suhbatni tozalash", callback_data="ai_clear")],
+                [InlineKeyboardButton("🚪 Chiqish",           callback_data="ai_exit")],
             ])
         )
         return
@@ -1924,26 +1947,30 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 disable_web_page_preview=True
             )
         else:
+            # Xato bo'lsa mode qayta tiklansin
+            context.user_data['screener_mode'] = mode
             await msg.delete()
             await update.message.reply_text(
                 f"❌ <b>{ticker}</b> topilmadi.\n\n"
                 f"{'Ticker' if mode == 'stock' else 'Ticker yoki CoinGecko ID'}ni to'g'ri kiriting.\n"
-                f"Misol: {'AAPL, TSLA, MSFT' if mode == 'stock' else 'BTC, ETH, SOL'}",
+                f"Misol: {'AAPL, TSLA, MSFT' if mode == 'stock' else 'BTC, ETH, SOL'}\n\n"
+                f"💡 Boshqa ticker kiriting:",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔄 Qayta urinish", callback_data=again_cb)],
-                    [InlineKeyboardButton("🏠 Bosh menyu",    callback_data="back")],
+                    [InlineKeyboardButton("⬅️ Ortga", callback_data=again_cb)],
                 ])
             )
         return
 
     # ── Hech qanday holat yo'q — bosh menyu ko'rsat ──
-    admin = await is_admin(user)
-    await update.message.reply_text(
-        WELCOME_TEXT,
-        parse_mode="HTML",
-        reply_markup=main_menu(is_admin=admin)
-    )
+    # (screener yoki AI mode bo'lmasa)
+    if not udata.get('screener_mode') and not udata.get('ai_mode'):
+        admin = await is_admin(user)
+        await update.message.reply_text(
+            WELCOME_TEXT,
+            parse_mode="HTML",
+            reply_markup=main_menu(is_admin=admin)
+        )
 
 
 # ── ONCHAIN ──
