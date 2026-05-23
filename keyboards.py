@@ -201,13 +201,14 @@ def referral_menu():
 def admin_main_menu():
     """Admin bosh menyusi"""
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📊 Statistika",              callback_data="admin_stats")],
-        [InlineKeyboardButton("👥 Obunachlar ro'yxati",     callback_data="admin_users")],
-        [InlineKeyboardButton("📢 Barchaga xabar yuborish", callback_data="admin_broadcast")],
-        [InlineKeyboardButton("❌ Obunani bekor qilish",    callback_data="admin_cancel_sub")],
-        [InlineKeyboardButton("🎟 Promo kod yaratish",      callback_data="admin_promo")],
-        [InlineKeyboardButton("🤝 Affiliate tasdiqlash",    callback_data="admin_affiliates")],
-        [InlineKeyboardButton("🏠 Bosh menyu",              callback_data="back")],
+        [InlineKeyboardButton("📊 Statistika",                  callback_data="admin_stats")],
+        [InlineKeyboardButton("👥 Obunachlar ro'yxati",         callback_data="admin_users")],
+        [InlineKeyboardButton("📢 Barchaga xabar",              callback_data="admin_broadcast")],
+        [InlineKeyboardButton("📣 Obuna bo'lmaganlarga xabar",  callback_data="admin_broadcast_nonsub")],
+        [InlineKeyboardButton("❌ Obunani bekor qilish",        callback_data="admin_cancel_sub")],
+        [InlineKeyboardButton("🎟 Promo kod yaratish",          callback_data="admin_promo")],
+        [InlineKeyboardButton("🤝 Affiliate tasdiqlash",        callback_data="admin_affiliates")],
+        [InlineKeyboardButton("🏠 Bosh menyu",                  callback_data="back")],
     ])
 
 
