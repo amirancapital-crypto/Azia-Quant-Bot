@@ -146,7 +146,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             affiliate_code = code[4:]
             context.user_data['affiliate_code'] = affiliate_code
 
-    context.user_data.clear()
+    # Faqat kerakli holatlarni tozalash (ai_mode saqlansin)
+    keys_to_clear = ['screener_mode', 'waiting_payment', 'sub_id', 'scr_sub_id',
+                     'premium_sub_id', 'sub_type', 'calc_mode', 'alert_pending',
+                     'portfolio_pending', 'portfolio_new', 'admin_broadcast',
+                     'admin_broadcast_nonsub', 'admin_promo', 'admin_cancel_sub',
+                     'aff_apply', 'aff_code', 'promo_pending', 'editing_signal']
+    for key in keys_to_clear:
+        context.user_data.pop(key, None)
+
     admin = await is_admin(user)
     await update.message.reply_text(
         WELCOME_TEXT,
@@ -444,21 +452,16 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ── AI YORDAMCHI ──
     elif data == "sec_ai":
         await q.edit_message_text(
-            "🤖 <b>AI Moliyaviy Yordamchi</b>\n\n"
-            "Professional moliyaviy maslahatchi!\n\n"
-            "💬 <b>Nima so'rasangiz bo'ladi:</b>\n"
+            "🧠 <b>AI Moliyaviy Yordamchi</b>\n\n"
+            "Bu bo'lim tez kunda ishga tushiriladi! 🚀\n\n"
+            "Kuchli AI modeli ulangandan so'ng:\n"
             "• Aksiya va crypto tahlili\n"
             "• Trading strategiyalari\n"
             "• Risk menejment maslahati\n"
-            "• Moliyaviy atamalar tushuntirish\n"
-            "• Portfolio diversifikatsiya\n"
-            "• DeFi va Web3 haqida\n\n"
-            "⚡ Savolingizni yozing!",
+            "• Portfolio diversifikatsiya\n\n"
+            "Kuzatib boring! 📡",
             parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💬 Suhbatni boshlash", callback_data="ai_start")],
-                [InlineKeyboardButton("⬅️ Ortga", callback_data="back")],
-            ])
+            reply_markup=back_menu()
         )
 
     elif data == "ai_start":
@@ -1537,16 +1540,19 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             action="typing"
         )
 
-        # Gemini ga yuborish
+        # AI ga yuborish
         response = await asyncio.to_thread(ask_ai, text, history)
 
-        # Tarixga qo'shish
-        history.append({"role": "user",  "parts": [{"text": text}]})
-        history.append({"role": "model", "parts": [{"text": response}]})
+        # Tarixga qo'shish (OpenRouter formati)
+        history.append({"role": "user",      "content": text})
+        history.append({"role": "assistant", "content": response})
 
         # Oxirgi 10 ta xabar saqlash
         if len(history) > 10:
             history = history[-10:]
+
+        # ai_mode saqlanib qolsin!
+        udata['ai_mode']    = True
         udata['ai_history'] = history
 
         await update.message.reply_text(
@@ -1578,18 +1584,25 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await use_promo_code(text.upper())
         discount    = promo['discount_pct']
-        # Chegirma 100% dan oshmasligi kerak
         discount    = min(discount, 100)
         final_price = max(0, info['price'] * (1 - discount / 100))
 
-        # Sub type ga qarab nom olish
         section_map = {
-            'channel':         SECTION_NAMES.get('signals', 'Signals'),
-            'screener':        SECTION_NAMES.get('screener', 'Screener'),
+            'channel':          SECTION_NAMES.get('signals', 'Signals'),
+            'screener':         SECTION_NAMES.get('screener', 'Screener'),
             'onchain_screener': SECTION_NAMES.get('screener', 'Onchain + Screener'),
-            'premium':         SECTION_NAMES.get('premium', 'Premium'),
+            'premium':          SECTION_NAMES.get('premium', 'Premium'),
         }
         section_name = section_map.get(info['sub_type'], 'Obuna')
+
+        # waiting_payment o'rnatish — chek kelganda admin ga ketsin
+        udata['waiting_payment'] = True
+        udata['sub_id']          = info['sub_id']
+        udata['sub_type']        = info['sub_type']
+        if info['sub_type'] == 'onchain_screener':
+            udata['scr_sub_id'] = info.get('scr_sub_id', info['sub_id'])
+        if info['sub_type'] == 'premium':
+            udata['premium_sub_id'] = info['sub_id']
 
         await update.message.reply_text(
             f"✅ <b>Promo kod qabul qilindi!</b>\n\n"
