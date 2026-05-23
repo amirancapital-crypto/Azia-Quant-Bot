@@ -31,9 +31,18 @@ def main_menu(is_admin=False):
 
 
 def back_menu():
-    """Ortga tugmasi"""
+    """Ortga + Bosh menyu tugmalari"""
     return InlineKeyboardMarkup([[
-        InlineKeyboardButton("⬅️ Ortga", callback_data="back")
+        InlineKeyboardButton("⬅️ Ortga", callback_data="back"),
+        InlineKeyboardButton("🏠 Bosh menyu", callback_data="back"),
+    ]])
+
+
+def section_back_menu(back_cb):
+    """Ortga (oldingi bo'lim) + Bosh menyu tugmalari"""
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("⬅️ Ortga", callback_data=back_cb),
+        InlineKeyboardButton("🏠 Bosh menyu", callback_data="back"),
     ]])
 
 
@@ -207,6 +216,7 @@ def admin_main_menu():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📊 Statistika",                  callback_data="admin_stats")],
         [InlineKeyboardButton("👥 Obunachlar ro'yxati",         callback_data="admin_users")],
+        [InlineKeyboardButton("👤 Barcha foydalanuvchilar",     callback_data="admin_all_users")],
         [InlineKeyboardButton("📢 Barchaga xabar",              callback_data="admin_broadcast")],
         [InlineKeyboardButton("📣 Obuna bo'lmaganlarga xabar",  callback_data="admin_broadcast_nonsub")],
         [InlineKeyboardButton("❌ Obunani bekor qilish",        callback_data="admin_cancel_sub")],
