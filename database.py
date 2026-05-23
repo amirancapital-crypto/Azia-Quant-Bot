@@ -206,6 +206,15 @@ def _init_db_sync():
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL UNIQUE,
+                username TEXT,
+                full_name TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
     else:
         # SQLite jadvallar
         c.execute("""CREATE TABLE IF NOT EXISTS subscriptions (
@@ -271,6 +280,10 @@ def _init_db_sync():
         c.execute("""CREATE TABLE IF NOT EXISTS search_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL, ticker TEXT NOT NULL, ticker_type TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL UNIQUE, username TEXT, full_name TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
 
     conn.commit()
@@ -1184,3 +1197,71 @@ async def get_all_users():
 
 async def cancel_subscription(user_id, section):
     await asyncio.to_thread(_cancel_subscription_sync, user_id, section)
+
+
+# ===================== USERS =====================
+
+def _save_user_sync(user_id, username, full_name):
+    conn = get_conn()
+    c = conn.cursor()
+    if USE_POSTGRES:
+        c.execute("""INSERT INTO users (user_id, username, full_name)
+            VALUES (%s, %s, %s) ON CONFLICT (user_id) DO UPDATE SET
+            username=EXCLUDED.username, full_name=EXCLUDED.full_name""",
+            (user_id, username or "", full_name or ""))
+    else:
+        c.execute("""INSERT OR REPLACE INTO users (user_id, username, full_name)
+            VALUES (?, ?, ?)""", (user_id, username or "", full_name or ""))
+    conn.commit()
+    conn.close()
+
+
+def _get_non_subscribers_sync():
+    """Obuna bo'lmagan foydalanuvchilar"""
+    conn = get_conn()
+    c = conn.cursor()
+    if USE_POSTGRES:
+        c.execute("""
+            SELECT u.user_id, u.username, u.full_name FROM users u
+            WHERE u.user_id NOT IN (
+                SELECT DISTINCT user_id FROM subscriptions WHERE status='approved'
+                UNION
+                SELECT DISTINCT user_id FROM screener_subscriptions WHERE status='approved'
+                UNION
+                SELECT DISTINCT user_id FROM premium_subscriptions WHERE status='approved'
+            )
+        """)
+    else:
+        c.execute("""
+            SELECT u.user_id, u.username, u.full_name FROM users u
+            WHERE u.user_id NOT IN (
+                SELECT DISTINCT user_id FROM subscriptions WHERE status='approved'
+                UNION
+                SELECT DISTINCT user_id FROM screener_subscriptions WHERE status='approved'
+                UNION
+                SELECT DISTINCT user_id FROM premium_subscriptions WHERE status='approved'
+            )
+        """)
+    rows = c.fetchall()
+    conn.close()
+    return [_row_to_dict(r) for r in rows]
+
+
+def _get_all_bot_users_sync():
+    """Barcha foydalanuvchilar"""
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users ORDER BY created_at DESC")
+    rows = c.fetchall()
+    conn.close()
+    return [_row_to_dict(r) for r in rows]
+
+
+async def save_user(user_id, username, full_name):
+    await asyncio.to_thread(_save_user_sync, user_id, username, full_name)
+
+async def get_non_subscribers():
+    return await asyncio.to_thread(_get_non_subscribers_sync)
+
+async def get_all_bot_users():
+    return await asyncio.to_thread(_get_all_bot_users_sync)
