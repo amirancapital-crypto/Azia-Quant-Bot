@@ -1,230 +1,324 @@
 #!/usr/bin/env python3
 """
 Azia Quant Bot — Database Module
-Barcha jadvallar va database funksiyalari
+PostgreSQL (Railway) yoki SQLite (lokal) support
 """
 
-import sqlite3
+import os
 import asyncio
 from datetime import datetime, timedelta
 
-DB_PATH = "azia_quant.db"
+# PostgreSQL yoki SQLite tanlash
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+if DATABASE_URL and DATABASE_URL.startswith("postgresql"):
+    # PostgreSQL
+    import psycopg2
+    import psycopg2.extras
+    USE_POSTGRES = True
+    print("[DB] PostgreSQL ishlatilmoqda")
+else:
+    # SQLite (lokal test uchun)
+    import sqlite3
+    USE_POSTGRES = False
+    DB_PATH = "azia_quant.db"
+    print("[DB] SQLite ishlatilmoqda")
+
+
+# ===================== ULANISH =====================
+
+def get_conn():
+    if USE_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+        return conn
+    else:
+        conn = sqlite3.connect(DB_PATH, timeout=30.0)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+
+def adapt_query(query):
+    """SQLite %s -> PostgreSQL $1, $2 ..."""
+    if USE_POSTGRES:
+        return query
+    # SQLite uchun %s o'rniga ? ishlatiladi
+    return query.replace("%s", "?")
+
 
 # ===================== INIT =====================
+
 def _init_db_sync():
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
 
-    # 1. Kanal obunalar
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS subscriptions (
+    if USE_POSTGRES:
+        # PostgreSQL jadvallar
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS subscriptions (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                username TEXT,
+                full_name TEXT,
+                section TEXT NOT NULL,
+                duration_months INTEGER NOT NULL,
+                start_date TEXT,
+                end_date TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS screener_subscriptions (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                username TEXT,
+                full_name TEXT,
+                duration_months INTEGER NOT NULL,
+                start_date TEXT,
+                end_date TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS premium_subscriptions (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                username TEXT,
+                full_name TEXT,
+                start_date TEXT,
+                end_date TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS admins (
+                id BIGINT PRIMARY KEY,
+                chat_id BIGINT NOT NULL UNIQUE
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS alerts (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                ticker TEXT NOT NULL,
+                ticker_type TEXT NOT NULL,
+                alert_type TEXT NOT NULL,
+                condition TEXT NOT NULL,
+                value REAL NOT NULL,
+                status TEXT DEFAULT 'active',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS portfolio (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                ticker TEXT NOT NULL,
+                ticker_type TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                buy_price REAL NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS referrals (
+                id SERIAL PRIMARY KEY,
+                referrer_id BIGINT NOT NULL,
+                referred_id BIGINT NOT NULL,
+                referral_code TEXT NOT NULL,
+                reward_amount REAL DEFAULT 0,
+                reward_paid INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS affiliates (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                username TEXT,
+                full_name TEXT,
+                affiliate_code TEXT UNIQUE,
+                total_referrals INTEGER DEFAULT 0,
+                total_earned REAL DEFAULT 0,
+                pending_amount REAL DEFAULT 0,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS affiliate_earnings (
+                id SERIAL PRIMARY KEY,
+                affiliate_id BIGINT NOT NULL,
+                referred_user_id BIGINT NOT NULL,
+                section TEXT NOT NULL,
+                amount REAL NOT NULL,
+                paid INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS free_usage (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL UNIQUE,
+                last_date TEXT,
+                count INTEGER DEFAULT 0
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS promo_codes (
+                id SERIAL PRIMARY KEY,
+                code TEXT UNIQUE NOT NULL,
+                discount_pct INTEGER NOT NULL,
+                max_uses INTEGER DEFAULT 1,
+                used_count INTEGER DEFAULT 0,
+                section TEXT,
+                expires_at TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS onchain_signals (
+                id SERIAL PRIMARY KEY,
+                signal_type TEXT NOT NULL,
+                coin TEXT NOT NULL,
+                data TEXT NOT NULL,
+                sent_to_channel INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS watchlist (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                ticker TEXT NOT NULL,
+                ticker_type TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS search_history (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                ticker TEXT NOT NULL,
+                ticker_type TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+    else:
+        # SQLite jadvallar
+        c.execute("""CREATE TABLE IF NOT EXISTS subscriptions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            username TEXT,
-            full_name TEXT,
-            section TEXT NOT NULL,
-            duration_months INTEGER NOT NULL,
-            start_date TEXT,
-            end_date TEXT,
-            status TEXT DEFAULT 'pending',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # 2. Screener obunalar (onchain + aksiya + crypto birga)
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS screener_subscriptions (
+            user_id INTEGER NOT NULL, username TEXT, full_name TEXT,
+            section TEXT NOT NULL, duration_months INTEGER NOT NULL,
+            start_date TEXT, end_date TEXT, status TEXT DEFAULT 'pending',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS screener_subscriptions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            username TEXT,
-            full_name TEXT,
-            duration_months INTEGER NOT NULL,
-            start_date TEXT,
-            end_date TEXT,
-            status TEXT DEFAULT 'pending',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # 3. Premium paket obunalar
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS premium_subscriptions (
+            user_id INTEGER NOT NULL, username TEXT, full_name TEXT,
+            duration_months INTEGER NOT NULL, start_date TEXT, end_date TEXT,
+            status TEXT DEFAULT 'pending', created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS premium_subscriptions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            username TEXT,
-            full_name TEXT,
-            start_date TEXT,
-            end_date TEXT,
-            status TEXT DEFAULT 'pending',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # 4. Adminlar
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS admins (
-            id INTEGER PRIMARY KEY,
-            chat_id INTEGER NOT NULL UNIQUE
-        )
-    """)
-
-    # 5. Ogohlantirishlar
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS alerts (
+            user_id INTEGER NOT NULL, username TEXT, full_name TEXT,
+            start_date TEXT, end_date TEXT, status TEXT DEFAULT 'pending',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS admins (
+            id INTEGER PRIMARY KEY, chat_id INTEGER NOT NULL UNIQUE)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS alerts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            ticker TEXT NOT NULL,
-            ticker_type TEXT NOT NULL,
-            alert_type TEXT NOT NULL,
-            condition TEXT NOT NULL,
-            value REAL NOT NULL,
-            status TEXT DEFAULT 'active',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # 6. Portfel
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS portfolio (
+            user_id INTEGER NOT NULL, ticker TEXT NOT NULL, ticker_type TEXT NOT NULL,
+            alert_type TEXT NOT NULL, condition TEXT NOT NULL, value REAL NOT NULL,
+            status TEXT DEFAULT 'active', created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS portfolio (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            ticker TEXT NOT NULL,
-            ticker_type TEXT NOT NULL,
-            quantity REAL NOT NULL,
-            buy_price REAL NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # 7. Referral
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS referrals (
+            user_id INTEGER NOT NULL, ticker TEXT NOT NULL, ticker_type TEXT NOT NULL,
+            quantity REAL NOT NULL, buy_price REAL NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS referrals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            referrer_id INTEGER NOT NULL,
-            referred_id INTEGER NOT NULL,
-            referral_code TEXT NOT NULL,
-            reward_amount REAL DEFAULT 0,
-            reward_paid INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # 8. Affiliate
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS affiliates (
+            referrer_id INTEGER NOT NULL, referred_id INTEGER NOT NULL,
+            referral_code TEXT NOT NULL, reward_amount REAL DEFAULT 0,
+            reward_paid INTEGER DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS affiliates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            username TEXT,
-            full_name TEXT,
-            affiliate_code TEXT UNIQUE,
-            total_referrals INTEGER DEFAULT 0,
-            total_earned REAL DEFAULT 0,
-            pending_amount REAL DEFAULT 0,
-            status TEXT DEFAULT 'pending',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # 9. Affiliate daromadlar
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS affiliate_earnings (
+            user_id INTEGER NOT NULL, username TEXT, full_name TEXT,
+            affiliate_code TEXT UNIQUE, total_referrals INTEGER DEFAULT 0,
+            total_earned REAL DEFAULT 0, pending_amount REAL DEFAULT 0,
+            status TEXT DEFAULT 'pending', created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS affiliate_earnings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            affiliate_id INTEGER NOT NULL,
-            referred_user_id INTEGER NOT NULL,
-            section TEXT NOT NULL,
-            amount REAL NOT NULL,
-            paid INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # 10. Bepul screener limit
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS free_usage (
+            affiliate_id INTEGER NOT NULL, referred_user_id INTEGER NOT NULL,
+            section TEXT NOT NULL, amount REAL NOT NULL, paid INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS free_usage (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL UNIQUE,
-            last_date TEXT,
-            count INTEGER DEFAULT 0
-        )
-    """)
-
-    # 11. Promo kodlar
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS promo_codes (
+            user_id INTEGER NOT NULL UNIQUE, last_date TEXT, count INTEGER DEFAULT 0)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS promo_codes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            code TEXT UNIQUE NOT NULL,
-            discount_pct INTEGER NOT NULL,
-            max_uses INTEGER DEFAULT 1,
-            used_count INTEGER DEFAULT 0,
-            section TEXT,
-            expires_at TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # 12. Onchain signallar
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS onchain_signals (
+            code TEXT UNIQUE NOT NULL, discount_pct INTEGER NOT NULL,
+            max_uses INTEGER DEFAULT 1, used_count INTEGER DEFAULT 0,
+            section TEXT, expires_at TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS onchain_signals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            signal_type TEXT NOT NULL,
-            coin TEXT NOT NULL,
-            data TEXT NOT NULL,
-            sent_to_channel INTEGER DEFAULT 0,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # 13. Watchlist
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS watchlist (
+            signal_type TEXT NOT NULL, coin TEXT NOT NULL, data TEXT NOT NULL,
+            sent_to_channel INTEGER DEFAULT 0, created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS watchlist (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            ticker TEXT NOT NULL,
-            ticker_type TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    # 14. Qidiruv tarixi
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS search_history (
+            user_id INTEGER NOT NULL, ticker TEXT NOT NULL, ticker_type TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        c.execute("""CREATE TABLE IF NOT EXISTS search_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            ticker TEXT NOT NULL,
-            ticker_type TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+            user_id INTEGER NOT NULL, ticker TEXT NOT NULL, ticker_type TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
 
     conn.commit()
     conn.close()
-    print("[DB] Database muvaffaqiyatli ishga tushdi!")
+    print("[DB] Jadvallar muvaffaqiyatli yaratildi!")
+
+
+def _row_to_dict(row):
+    if row is None:
+        return None
+    if USE_POSTGRES:
+        return dict(row)
+    else:
+        return dict(row)
+
 
 # ===================== SUBSCRIPTIONS =====================
 
 def _save_subscription_sync(user_id, username, full_name, section, duration):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO subscriptions (user_id, username, full_name, section, duration_months)
-        VALUES (?, ?, ?, ?, ?)
-    """, (user_id, username or "", full_name or "Noma'lum", section, duration))
-    sub_id = c.lastrowid
+    if USE_POSTGRES:
+        c.execute("""INSERT INTO subscriptions (user_id, username, full_name, section, duration_months)
+            VALUES (%s, %s, %s, %s, %s) RETURNING id""",
+            (user_id, username or "", full_name or "Noma'lum", section, duration))
+        sub_id = c.fetchone()['id']
+    else:
+        c.execute("""INSERT INTO subscriptions (user_id, username, full_name, section, duration_months)
+            VALUES (?, ?, ?, ?, ?)""",
+            (user_id, username or "", full_name or "Noma'lum", section, duration))
+        sub_id = c.lastrowid
     conn.commit()
     conn.close()
     return sub_id
 
+
 def _get_subscription_sync(sub_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT * FROM subscriptions WHERE id=?", (sub_id,))
+    q = "SELECT * FROM subscriptions WHERE id=%s" if USE_POSTGRES else "SELECT * FROM subscriptions WHERE id=?"
+    c.execute(q, (sub_id,))
     row = c.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
+
 
 def _approve_subscription_sync(sub_id, duration_months):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
     now = datetime.now()
     if duration_months == 0:
@@ -235,78 +329,94 @@ def _approve_subscription_sync(sub_id, duration_months):
         end_date = (now + timedelta(days=365)).isoformat()
     else:
         end_date = (now + timedelta(days=30 * duration_months)).isoformat()
-    c.execute("""
-        UPDATE subscriptions SET status='approved', start_date=?, end_date=? WHERE id=?
-    """, (now.isoformat(), end_date, sub_id))
+    q = "UPDATE subscriptions SET status='approved', start_date=%s, end_date=%s WHERE id=%s" if USE_POSTGRES else \
+        "UPDATE subscriptions SET status='approved', start_date=?, end_date=? WHERE id=?"
+    c.execute(q, (now.isoformat(), end_date, sub_id))
     conn.commit()
     conn.close()
+
 
 def _reject_subscription_sync(sub_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("UPDATE subscriptions SET status='rejected' WHERE id=?", (sub_id,))
+    q = "UPDATE subscriptions SET status='rejected' WHERE id=%s" if USE_POSTGRES else \
+        "UPDATE subscriptions SET status='rejected' WHERE id=?"
+    c.execute(q, (sub_id,))
     conn.commit()
     conn.close()
+
 
 def _check_channel_access_sync(user_id, section):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
     now = datetime.now().isoformat()
-    c.execute("""
-        SELECT * FROM subscriptions
-        WHERE user_id=? AND section=? AND status='approved'
-        AND (end_date IS NULL OR end_date > ?)
-    """, (user_id, section, now))
+    q = """SELECT * FROM subscriptions WHERE user_id=%s AND section=%s AND status='approved'
+        AND (end_date IS NULL OR end_date > %s)""" if USE_POSTGRES else \
+        """SELECT * FROM subscriptions WHERE user_id=? AND section=? AND status='approved'
+        AND (end_date IS NULL OR end_date > ?)"""
+    c.execute(q, (user_id, section, now))
     row = c.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
+
 
 def _get_expired_subscriptions_sync():
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
     now = datetime.now().isoformat()
-    c.execute("""
-        SELECT * FROM subscriptions
-        WHERE status='approved' AND end_date IS NOT NULL AND end_date < ?
-    """, (now,))
+    q = """SELECT * FROM subscriptions WHERE status='approved'
+        AND end_date IS NOT NULL AND end_date < %s""" if USE_POSTGRES else \
+        """SELECT * FROM subscriptions WHERE status='approved'
+        AND end_date IS NOT NULL AND end_date < ?"""
+    c.execute(q, (now,))
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows]
+
 
 def _mark_expired_sync(sub_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("UPDATE subscriptions SET status='expired' WHERE id=?", (sub_id,))
+    q = "UPDATE subscriptions SET status='expired' WHERE id=%s" if USE_POSTGRES else \
+        "UPDATE subscriptions SET status='expired' WHERE id=?"
+    c.execute(q, (sub_id,))
     conn.commit()
     conn.close()
+
 
 # ===================== SCREENER SUBSCRIPTIONS =====================
 
 def _save_screener_sub_sync(user_id, username, full_name, duration):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO screener_subscriptions (user_id, username, full_name, duration_months)
-        VALUES (?, ?, ?, ?)
-    """, (user_id, username or "", full_name or "Noma'lum", duration))
-    sub_id = c.lastrowid
+    if USE_POSTGRES:
+        c.execute("""INSERT INTO screener_subscriptions (user_id, username, full_name, duration_months)
+            VALUES (%s, %s, %s, %s) RETURNING id""",
+            (user_id, username or "", full_name or "Noma'lum", duration))
+        sub_id = c.fetchone()['id']
+    else:
+        c.execute("""INSERT INTO screener_subscriptions (user_id, username, full_name, duration_months)
+            VALUES (?, ?, ?, ?)""",
+            (user_id, username or "", full_name or "Noma'lum", duration))
+        sub_id = c.lastrowid
     conn.commit()
     conn.close()
     return sub_id
 
+
 def _get_screener_sub_sync(sub_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT * FROM screener_subscriptions WHERE id=?", (sub_id,))
+    q = "SELECT * FROM screener_subscriptions WHERE id=%s" if USE_POSTGRES else \
+        "SELECT * FROM screener_subscriptions WHERE id=?"
+    c.execute(q, (sub_id,))
     row = c.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
+
 
 def _approve_screener_sub_sync(sub_id, duration_months):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
     now = datetime.now()
     if duration_months == 0:
@@ -315,502 +425,601 @@ def _approve_screener_sub_sync(sub_id, duration_months):
         end_date = (now + timedelta(days=180)).isoformat()
     else:
         end_date = (now + timedelta(days=365)).isoformat()
-    c.execute("""
-        UPDATE screener_subscriptions SET status='approved', start_date=?, end_date=? WHERE id=?
-    """, (now.isoformat(), end_date, sub_id))
+    q = "UPDATE screener_subscriptions SET status='approved', start_date=%s, end_date=%s WHERE id=%s" if USE_POSTGRES else \
+        "UPDATE screener_subscriptions SET status='approved', start_date=?, end_date=? WHERE id=?"
+    c.execute(q, (now.isoformat(), end_date, sub_id))
     conn.commit()
     conn.close()
+
 
 def _reject_screener_sub_sync(sub_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("UPDATE screener_subscriptions SET status='rejected' WHERE id=?", (sub_id,))
+    q = "UPDATE screener_subscriptions SET status='rejected' WHERE id=%s" if USE_POSTGRES else \
+        "UPDATE screener_subscriptions SET status='rejected' WHERE id=?"
+    c.execute(q, (sub_id,))
     conn.commit()
     conn.close()
+
 
 def _check_screener_access_sync(user_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
     now = datetime.now().isoformat()
-    c.execute("""
-        SELECT * FROM screener_subscriptions
-        WHERE user_id=? AND status='approved'
-        AND (end_date IS NULL OR end_date > ?)
-    """, (user_id, now))
+    q = """SELECT * FROM screener_subscriptions WHERE user_id=%s AND status='approved'
+        AND (end_date IS NULL OR end_date > %s)""" if USE_POSTGRES else \
+        """SELECT * FROM screener_subscriptions WHERE user_id=? AND status='approved'
+        AND (end_date IS NULL OR end_date > ?)"""
+    c.execute(q, (user_id, now))
     row = c.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
+
 
 def _get_expired_screener_subs_sync():
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
     now = datetime.now().isoformat()
-    c.execute("""
-        SELECT * FROM screener_subscriptions
-        WHERE status='approved' AND end_date IS NOT NULL AND end_date < ?
-    """, (now,))
+    q = """SELECT * FROM screener_subscriptions WHERE status='approved'
+        AND end_date IS NOT NULL AND end_date < %s""" if USE_POSTGRES else \
+        """SELECT * FROM screener_subscriptions WHERE status='approved'
+        AND end_date IS NOT NULL AND end_date < ?"""
+    c.execute(q, (now,))
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows]
+
 
 def _mark_screener_expired_sync(sub_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("UPDATE screener_subscriptions SET status='expired' WHERE id=?", (sub_id,))
+    q = "UPDATE screener_subscriptions SET status='expired' WHERE id=%s" if USE_POSTGRES else \
+        "UPDATE screener_subscriptions SET status='expired' WHERE id=?"
+    c.execute(q, (sub_id,))
     conn.commit()
     conn.close()
 
-# ===================== PREMIUM SUBSCRIPTIONS =====================
+
+# ===================== PREMIUM =====================
 
 def _save_premium_sub_sync(user_id, username, full_name):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO premium_subscriptions (user_id, username, full_name)
-        VALUES (?, ?, ?)
-    """, (user_id, username or "", full_name or "Noma'lum"))
-    sub_id = c.lastrowid
+    if USE_POSTGRES:
+        c.execute("""INSERT INTO premium_subscriptions (user_id, username, full_name)
+            VALUES (%s, %s, %s) RETURNING id""",
+            (user_id, username or "", full_name or "Noma'lum"))
+        sub_id = c.fetchone()['id']
+    else:
+        c.execute("""INSERT INTO premium_subscriptions (user_id, username, full_name)
+            VALUES (?, ?, ?)""",
+            (user_id, username or "", full_name or "Noma'lum"))
+        sub_id = c.lastrowid
     conn.commit()
     conn.close()
     return sub_id
 
+
 def _get_premium_sub_sync(sub_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT * FROM premium_subscriptions WHERE id=?", (sub_id,))
+    q = "SELECT * FROM premium_subscriptions WHERE id=%s" if USE_POSTGRES else \
+        "SELECT * FROM premium_subscriptions WHERE id=?"
+    c.execute(q, (sub_id,))
     row = c.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
+
 
 def _approve_premium_sub_sync(sub_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
     now = datetime.now()
-    c.execute("""
-        UPDATE premium_subscriptions SET status='approved', start_date=?, end_date=NULL WHERE id=?
-    """, (now.isoformat(), sub_id))
+    q = "UPDATE premium_subscriptions SET status='approved', start_date=%s, end_date=NULL WHERE id=%s" if USE_POSTGRES else \
+        "UPDATE premium_subscriptions SET status='approved', start_date=?, end_date=NULL WHERE id=?"
+    c.execute(q, (now.isoformat(), sub_id))
     conn.commit()
     conn.close()
+
 
 def _reject_premium_sub_sync(sub_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("UPDATE premium_subscriptions SET status='rejected' WHERE id=?", (sub_id,))
+    q = "UPDATE premium_subscriptions SET status='rejected' WHERE id=%s" if USE_POSTGRES else \
+        "UPDATE premium_subscriptions SET status='rejected' WHERE id=?"
+    c.execute(q, (sub_id,))
     conn.commit()
     conn.close()
 
+
 def _check_premium_access_sync(user_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        SELECT * FROM premium_subscriptions
-        WHERE user_id=? AND status='approved'
-    """, (user_id,))
+    q = "SELECT * FROM premium_subscriptions WHERE user_id=%s AND status='approved'" if USE_POSTGRES else \
+        "SELECT * FROM premium_subscriptions WHERE user_id=? AND status='approved'"
+    c.execute(q, (user_id,))
     row = c.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
+
 
 # ===================== ADMINS =====================
 
 def _save_admin_id_sync(chat_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO admins (id, chat_id) VALUES (?, ?)", (chat_id, chat_id))
+    if USE_POSTGRES:
+        c.execute("INSERT INTO admins (id, chat_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                  (chat_id, chat_id))
+    else:
+        c.execute("INSERT OR REPLACE INTO admins (id, chat_id) VALUES (?, ?)", (chat_id, chat_id))
     conn.commit()
     conn.close()
 
+
 def _get_admin_ids_sync():
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT chat_id FROM admins")
     rows = c.fetchall()
     conn.close()
-    return [r[0] for r in rows]
+    return [r['chat_id'] for r in rows]
+
 
 # ===================== ALERTS =====================
 
 def _save_alert_sync(user_id, ticker, ticker_type, alert_type, condition, value):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO alerts (user_id, ticker, ticker_type, alert_type, condition, value)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (user_id, ticker, ticker_type, alert_type, condition, value))
-    alert_id = c.lastrowid
+    if USE_POSTGRES:
+        c.execute("""INSERT INTO alerts (user_id, ticker, ticker_type, alert_type, condition, value)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+            (user_id, ticker, ticker_type, alert_type, condition, value))
+        aid = c.fetchone()['id']
+    else:
+        c.execute("""INSERT INTO alerts (user_id, ticker, ticker_type, alert_type, condition, value)
+            VALUES (?, ?, ?, ?, ?, ?)""",
+            (user_id, ticker, ticker_type, alert_type, condition, value))
+        aid = c.lastrowid
     conn.commit()
     conn.close()
-    return alert_id
+    return aid
+
 
 def _get_active_alerts_sync():
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT * FROM alerts WHERE status='active'")
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows]
+
 
 def _get_user_alerts_sync(user_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT * FROM alerts WHERE user_id=? AND status='active'", (user_id,))
+    q = "SELECT * FROM alerts WHERE user_id=%s AND status='active'" if USE_POSTGRES else \
+        "SELECT * FROM alerts WHERE user_id=? AND status='active'"
+    c.execute(q, (user_id,))
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows]
+
 
 def _deactivate_alert_sync(alert_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("UPDATE alerts SET status='triggered' WHERE id=?", (alert_id,))
+    q = "UPDATE alerts SET status='triggered' WHERE id=%s" if USE_POSTGRES else \
+        "UPDATE alerts SET status='triggered' WHERE id=?"
+    c.execute(q, (alert_id,))
     conn.commit()
     conn.close()
 
+
 def _delete_alert_sync(alert_id, user_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("DELETE FROM alerts WHERE id=? AND user_id=?", (alert_id, user_id))
+    q = "DELETE FROM alerts WHERE id=%s AND user_id=%s" if USE_POSTGRES else \
+        "DELETE FROM alerts WHERE id=? AND user_id=?"
+    c.execute(q, (alert_id, user_id))
     conn.commit()
     conn.close()
+
 
 # ===================== PORTFOLIO =====================
 
 def _add_portfolio_sync(user_id, ticker, ticker_type, quantity, buy_price):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO portfolio (user_id, ticker, ticker_type, quantity, buy_price)
-        VALUES (?, ?, ?, ?, ?)
-    """, (user_id, ticker, ticker_type, quantity, buy_price))
+    q = """INSERT INTO portfolio (user_id, ticker, ticker_type, quantity, buy_price)
+        VALUES (%s, %s, %s, %s, %s)""" if USE_POSTGRES else \
+        """INSERT INTO portfolio (user_id, ticker, ticker_type, quantity, buy_price)
+        VALUES (?, ?, ?, ?, ?)"""
+    c.execute(q, (user_id, ticker, ticker_type, quantity, buy_price))
     conn.commit()
     conn.close()
+
 
 def _get_portfolio_sync(user_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT * FROM portfolio WHERE user_id=?", (user_id,))
+    q = "SELECT * FROM portfolio WHERE user_id=%s" if USE_POSTGRES else \
+        "SELECT * FROM portfolio WHERE user_id=?"
+    c.execute(q, (user_id,))
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows]
+
 
 def _delete_portfolio_item_sync(item_id, user_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("DELETE FROM portfolio WHERE id=? AND user_id=?", (item_id, user_id))
+    q = "DELETE FROM portfolio WHERE id=%s AND user_id=%s" if USE_POSTGRES else \
+        "DELETE FROM portfolio WHERE id=? AND user_id=?"
+    c.execute(q, (item_id, user_id))
     conn.commit()
     conn.close()
+
 
 # ===================== REFERRAL =====================
 
 def _save_referral_sync(referrer_id, referred_id, referral_code):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        INSERT OR IGNORE INTO referrals (referrer_id, referred_id, referral_code)
-        VALUES (?, ?, ?)
-    """, (referrer_id, referred_id, referral_code))
+    if USE_POSTGRES:
+        c.execute("""INSERT INTO referrals (referrer_id, referred_id, referral_code)
+            VALUES (%s, %s, %s) ON CONFLICT DO NOTHING""",
+            (referrer_id, referred_id, referral_code))
+    else:
+        c.execute("""INSERT OR IGNORE INTO referrals (referrer_id, referred_id, referral_code)
+            VALUES (?, ?, ?)""", (referrer_id, referred_id, referral_code))
     conn.commit()
     conn.close()
+
 
 def _get_referral_stats_sync(user_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        SELECT COUNT(*) as total, SUM(reward_amount) as total_reward,
-               SUM(CASE WHEN reward_paid=1 THEN reward_amount ELSE 0 END) as paid_reward
-        FROM referrals WHERE referrer_id=?
-    """, (user_id,))
+    q = """SELECT COUNT(*) as total, COALESCE(SUM(reward_amount),0) as total_reward,
+        COALESCE(SUM(CASE WHEN reward_paid=1 THEN reward_amount ELSE 0 END),0) as paid_reward
+        FROM referrals WHERE referrer_id=%s""" if USE_POSTGRES else \
+        """SELECT COUNT(*) as total, COALESCE(SUM(reward_amount),0) as total_reward,
+        COALESCE(SUM(CASE WHEN reward_paid=1 THEN reward_amount ELSE 0 END),0) as paid_reward
+        FROM referrals WHERE referrer_id=?"""
+    c.execute(q, (user_id,))
     row = c.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
+
 
 def _update_referral_reward_sync(referrer_id, referred_id, amount):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        UPDATE referrals SET reward_amount=? WHERE referrer_id=? AND referred_id=?
-    """, (amount, referrer_id, referred_id))
+    q = "UPDATE referrals SET reward_amount=%s WHERE referrer_id=%s AND referred_id=%s" if USE_POSTGRES else \
+        "UPDATE referrals SET reward_amount=? WHERE referrer_id=? AND referred_id=?"
+    c.execute(q, (amount, referrer_id, referred_id))
     conn.commit()
     conn.close()
+
 
 # ===================== AFFILIATE =====================
 
 def _save_affiliate_sync(user_id, username, full_name, affiliate_code):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO affiliates (user_id, username, full_name, affiliate_code)
-        VALUES (?, ?, ?, ?)
-    """, (user_id, username or "", full_name or "Noma'lum", affiliate_code))
+    q = """INSERT INTO affiliates (user_id, username, full_name, affiliate_code)
+        VALUES (%s, %s, %s, %s)""" if USE_POSTGRES else \
+        """INSERT INTO affiliates (user_id, username, full_name, affiliate_code)
+        VALUES (?, ?, ?, ?)"""
+    c.execute(q, (user_id, username or "", full_name or "Noma'lum", affiliate_code))
     conn.commit()
     conn.close()
+
 
 def _get_affiliate_sync(user_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT * FROM affiliates WHERE user_id=?", (user_id,))
+    q = "SELECT * FROM affiliates WHERE user_id=%s" if USE_POSTGRES else \
+        "SELECT * FROM affiliates WHERE user_id=?"
+    c.execute(q, (user_id,))
     row = c.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
+
 
 def _get_affiliate_by_code_sync(code):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT * FROM affiliates WHERE affiliate_code=? AND status='approved'", (code,))
+    q = "SELECT * FROM affiliates WHERE affiliate_code=%s AND status='approved'" if USE_POSTGRES else \
+        "SELECT * FROM affiliates WHERE affiliate_code=? AND status='approved'"
+    c.execute(q, (code,))
     row = c.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
+
 
 def _approve_affiliate_sync(user_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("UPDATE affiliates SET status='approved' WHERE user_id=?", (user_id,))
+    q = "UPDATE affiliates SET status='approved' WHERE user_id=%s" if USE_POSTGRES else \
+        "UPDATE affiliates SET status='approved' WHERE user_id=?"
+    c.execute(q, (user_id,))
     conn.commit()
     conn.close()
+
 
 def _add_affiliate_earning_sync(affiliate_id, referred_user_id, section, amount):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO affiliate_earnings (affiliate_id, referred_user_id, section, amount)
-        VALUES (?, ?, ?, ?)
-    """, (affiliate_id, referred_user_id, section, amount))
-    c.execute("""
-        UPDATE affiliates SET total_referrals=total_referrals+1,
-        total_earned=total_earned+?, pending_amount=pending_amount+?
-        WHERE id=?
-    """, (amount, amount, affiliate_id))
+    if USE_POSTGRES:
+        c.execute("""INSERT INTO affiliate_earnings (affiliate_id, referred_user_id, section, amount)
+            VALUES (%s, %s, %s, %s)""", (affiliate_id, referred_user_id, section, amount))
+        c.execute("""UPDATE affiliates SET total_referrals=total_referrals+1,
+            total_earned=total_earned+%s, pending_amount=pending_amount+%s WHERE id=%s""",
+            (amount, amount, affiliate_id))
+    else:
+        c.execute("""INSERT INTO affiliate_earnings (affiliate_id, referred_user_id, section, amount)
+            VALUES (?, ?, ?, ?)""", (affiliate_id, referred_user_id, section, amount))
+        c.execute("""UPDATE affiliates SET total_referrals=total_referrals+1,
+            total_earned=total_earned+?, pending_amount=pending_amount+? WHERE id=?""",
+            (amount, amount, affiliate_id))
     conn.commit()
     conn.close()
 
+
 def _get_all_affiliates_sync():
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT * FROM affiliates WHERE status='approved'")
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows]
+
 
 # ===================== FREE USAGE =====================
 
 def _check_free_usage_sync(user_id):
-    """Bugun bepul screener ishlatish huquqi bormi?"""
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
     today = datetime.now().strftime("%Y-%m-%d")
-    c.execute("SELECT * FROM free_usage WHERE user_id=?", (user_id,))
+    q = "SELECT * FROM free_usage WHERE user_id=%s" if USE_POSTGRES else \
+        "SELECT * FROM free_usage WHERE user_id=?"
+    c.execute(q, (user_id,))
     row = c.fetchone()
     if not row:
-        c.execute("INSERT INTO free_usage (user_id, last_date, count) VALUES (?, ?, 0)", (user_id, today))
+        q2 = "INSERT INTO free_usage (user_id, last_date, count) VALUES (%s, %s, 0)" if USE_POSTGRES else \
+             "INSERT INTO free_usage (user_id, last_date, count) VALUES (?, ?, 0)"
+        c.execute(q2, (user_id, today))
         conn.commit()
         conn.close()
         return True
-    row = dict(row)
+    row = _row_to_dict(row)
     if row['last_date'] != today:
-        c.execute("UPDATE free_usage SET last_date=?, count=0 WHERE user_id=?", (today, user_id))
+        q3 = "UPDATE free_usage SET last_date=%s, count=0 WHERE user_id=%s" if USE_POSTGRES else \
+             "UPDATE free_usage SET last_date=?, count=0 WHERE user_id=?"
+        c.execute(q3, (today, user_id))
         conn.commit()
         conn.close()
         return True
     conn.close()
-    return row['count'] < 1  # Kuniga 1 ta
+    return row['count'] < 1
+
 
 def _increment_free_usage_sync(user_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
     today = datetime.now().strftime("%Y-%m-%d")
-    c.execute("""
-        INSERT INTO free_usage (user_id, last_date, count) VALUES (?, ?, 1)
-        ON CONFLICT(user_id) DO UPDATE SET
-        count = CASE WHEN last_date=? THEN count+1 ELSE 1 END,
-        last_date = ?
-    """, (user_id, today, today, today))
+    if USE_POSTGRES:
+        c.execute("""INSERT INTO free_usage (user_id, last_date, count) VALUES (%s, %s, 1)
+            ON CONFLICT (user_id) DO UPDATE SET
+            count = CASE WHEN free_usage.last_date=%s THEN free_usage.count+1 ELSE 1 END,
+            last_date = %s""", (user_id, today, today, today))
+    else:
+        c.execute("""INSERT INTO free_usage (user_id, last_date, count) VALUES (?, ?, 1)
+            ON CONFLICT(user_id) DO UPDATE SET
+            count = CASE WHEN last_date=? THEN count+1 ELSE 1 END, last_date = ?""",
+            (user_id, today, today, today))
     conn.commit()
     conn.close()
+
 
 # ===================== PROMO CODES =====================
 
 def _check_promo_code_sync(code):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
     now = datetime.now().isoformat()
-    c.execute("""
-        SELECT * FROM promo_codes
-        WHERE code=? AND used_count < max_uses
-        AND (expires_at IS NULL OR expires_at > ?)
-    """, (code, now))
+    q = """SELECT * FROM promo_codes WHERE code=%s AND used_count < max_uses
+        AND (expires_at IS NULL OR expires_at > %s)""" if USE_POSTGRES else \
+        """SELECT * FROM promo_codes WHERE code=? AND used_count < max_uses
+        AND (expires_at IS NULL OR expires_at > ?)"""
+    c.execute(q, (code, now))
     row = c.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
+
 
 def _use_promo_code_sync(code):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("UPDATE promo_codes SET used_count=used_count+1 WHERE code=?", (code,))
+    q = "UPDATE promo_codes SET used_count=used_count+1 WHERE code=%s" if USE_POSTGRES else \
+        "UPDATE promo_codes SET used_count=used_count+1 WHERE code=?"
+    c.execute(q, (code,))
     conn.commit()
     conn.close()
 
+
 def _create_promo_code_sync(code, discount_pct, max_uses, section, expires_at):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO promo_codes (code, discount_pct, max_uses, section, expires_at)
-        VALUES (?, ?, ?, ?, ?)
-    """, (code, discount_pct, max_uses, section, expires_at))
+    q = """INSERT INTO promo_codes (code, discount_pct, max_uses, section, expires_at)
+        VALUES (%s, %s, %s, %s, %s)""" if USE_POSTGRES else \
+        """INSERT INTO promo_codes (code, discount_pct, max_uses, section, expires_at)
+        VALUES (?, ?, ?, ?, ?)"""
+    c.execute(q, (code, discount_pct, max_uses, section, expires_at))
     conn.commit()
     conn.close()
+
 
 # ===================== ONCHAIN SIGNALS =====================
 
 def _save_onchain_signal_sync(signal_type, coin, data):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO onchain_signals (signal_type, coin, data)
-        VALUES (?, ?, ?)
-    """, (signal_type, coin, data))
-    signal_id = c.lastrowid
+    if USE_POSTGRES:
+        c.execute("""INSERT INTO onchain_signals (signal_type, coin, data)
+            VALUES (%s, %s, %s) RETURNING id""", (signal_type, coin, data))
+        sid = c.fetchone()['id']
+    else:
+        c.execute("""INSERT INTO onchain_signals (signal_type, coin, data)
+            VALUES (?, ?, ?)""", (signal_type, coin, data))
+        sid = c.lastrowid
     conn.commit()
     conn.close()
-    return signal_id
+    return sid
+
 
 def _mark_signal_sent_sync(signal_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("UPDATE onchain_signals SET sent_to_channel=1 WHERE id=?", (signal_id,))
+    q = "UPDATE onchain_signals SET sent_to_channel=1 WHERE id=%s" if USE_POSTGRES else \
+        "UPDATE onchain_signals SET sent_to_channel=1 WHERE id=?"
+    c.execute(q, (signal_id,))
     conn.commit()
     conn.close()
+
 
 # ===================== WATCHLIST =====================
 
 def _add_watchlist_sync(user_id, ticker, ticker_type):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        INSERT OR IGNORE INTO watchlist (user_id, ticker, ticker_type)
-        VALUES (?, ?, ?)
-    """, (user_id, ticker, ticker_type))
+    if USE_POSTGRES:
+        c.execute("""INSERT INTO watchlist (user_id, ticker, ticker_type)
+            VALUES (%s, %s, %s) ON CONFLICT DO NOTHING""", (user_id, ticker, ticker_type))
+    else:
+        c.execute("""INSERT OR IGNORE INTO watchlist (user_id, ticker, ticker_type)
+            VALUES (?, ?, ?)""", (user_id, ticker, ticker_type))
     conn.commit()
     conn.close()
+
 
 def _get_watchlist_sync(user_id):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT * FROM watchlist WHERE user_id=?", (user_id,))
+    q = "SELECT * FROM watchlist WHERE user_id=%s" if USE_POSTGRES else \
+        "SELECT * FROM watchlist WHERE user_id=?"
+    c.execute(q, (user_id,))
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows]
+
 
 def _remove_watchlist_sync(user_id, ticker):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("DELETE FROM watchlist WHERE user_id=? AND ticker=?", (user_id, ticker))
+    q = "DELETE FROM watchlist WHERE user_id=%s AND ticker=%s" if USE_POSTGRES else \
+        "DELETE FROM watchlist WHERE user_id=? AND ticker=?"
+    c.execute(q, (user_id, ticker))
     conn.commit()
     conn.close()
+
 
 # ===================== SEARCH HISTORY =====================
 
 def _save_search_sync(user_id, ticker, ticker_type):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO search_history (user_id, ticker, ticker_type)
-        VALUES (?, ?, ?)
-    """, (user_id, ticker, ticker_type))
+    q = """INSERT INTO search_history (user_id, ticker, ticker_type)
+        VALUES (%s, %s, %s)""" if USE_POSTGRES else \
+        """INSERT INTO search_history (user_id, ticker, ticker_type)
+        VALUES (?, ?, ?)"""
+    c.execute(q, (user_id, ticker, ticker_type))
     conn.commit()
     conn.close()
+
 
 def _get_search_history_sync(user_id, limit=5):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        SELECT DISTINCT ticker, ticker_type FROM search_history
-        WHERE user_id=? ORDER BY created_at DESC LIMIT ?
-    """, (user_id, limit))
+    q = """SELECT DISTINCT ticker, ticker_type FROM search_history
+        WHERE user_id=%s ORDER BY created_at DESC LIMIT %s""" if USE_POSTGRES else \
+        """SELECT DISTINCT ticker, ticker_type FROM search_history
+        WHERE user_id=? ORDER BY created_at DESC LIMIT ?"""
+    c.execute(q, (user_id, limit))
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows]
 
-# ===================== ADMIN STATISTICS =====================
+
+# ===================== ADMIN STATS =====================
 
 def _get_stats_sync():
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
-
-    # Jami obunachlar
-    c.execute("SELECT COUNT(DISTINCT user_id) FROM subscriptions WHERE status='approved'")
-    channel_subs = c.fetchone()[0]
-
-    c.execute("SELECT COUNT(DISTINCT user_id) FROM screener_subscriptions WHERE status='approved'")
-    screener_subs = c.fetchone()[0]
-
-    c.execute("SELECT COUNT(DISTINCT user_id) FROM premium_subscriptions WHERE status='approved'")
-    premium_subs = c.fetchone()[0]
-
-    # Bu oy
     this_month = datetime.now().strftime("%Y-%m")
-    c.execute("""
-        SELECT COUNT(*) FROM subscriptions
-        WHERE status='approved' AND created_at LIKE ?
-    """, (f"{this_month}%",))
-    new_this_month = c.fetchone()[0]
+    results = {}
 
-    # Kutilayotgan
-    c.execute("SELECT COUNT(*) FROM subscriptions WHERE status='pending'")
-    pending = c.fetchone()[0]
+    def fetch_count(query, params=None):
+        if params:
+            c.execute(query, params)
+        else:
+            c.execute(query)
+        row = c.fetchone()
+        if USE_POSTGRES:
+            return list(dict(row).values())[0]
+        else:
+            return row[0]
 
-    c.execute("SELECT COUNT(*) FROM screener_subscriptions WHERE status='pending'")
-    pending_scr = c.fetchone()[0]
+    results['channel_subs']   = fetch_count("SELECT COUNT(DISTINCT user_id) FROM subscriptions WHERE status='approved'")
+    results['screener_subs']  = fetch_count("SELECT COUNT(DISTINCT user_id) FROM screener_subscriptions WHERE status='approved'")
+    results['premium_subs']   = fetch_count("SELECT COUNT(DISTINCT user_id) FROM premium_subscriptions WHERE status='approved'")
+    results['pending']        = fetch_count("SELECT COUNT(*) FROM subscriptions WHERE status='pending'")
+
+    if USE_POSTGRES:
+        results['new_this_month'] = fetch_count(
+            "SELECT COUNT(*) FROM subscriptions WHERE status='approved' AND created_at LIKE %s",
+            (f"{this_month}%",)
+        )
+    else:
+        results['new_this_month'] = fetch_count(
+            "SELECT COUNT(*) FROM subscriptions WHERE status='approved' AND created_at LIKE ?",
+            (f"{this_month}%",)
+        )
 
     conn.close()
-    return {
-        'channel_subs': channel_subs,
-        'screener_subs': screener_subs,
-        'premium_subs': premium_subs,
-        'new_this_month': new_this_month,
-        'pending': pending + pending_scr,
-    }
+    return results
+
 
 def _get_all_users_sync():
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        SELECT DISTINCT user_id, username, full_name FROM subscriptions
-        WHERE status='approved'
-        UNION
-        SELECT DISTINCT user_id, username, full_name FROM screener_subscriptions
-        WHERE status='approved'
-        UNION
-        SELECT DISTINCT user_id, username, full_name FROM premium_subscriptions
-        WHERE status='approved'
-    """)
+    if USE_POSTGRES:
+        c.execute("""
+            SELECT DISTINCT user_id, username, full_name FROM subscriptions WHERE status='approved'
+            UNION SELECT DISTINCT user_id, username, full_name FROM screener_subscriptions WHERE status='approved'
+            UNION SELECT DISTINCT user_id, username, full_name FROM premium_subscriptions WHERE status='approved'
+        """)
+    else:
+        c.execute("""
+            SELECT DISTINCT user_id, username, full_name FROM subscriptions WHERE status='approved'
+            UNION SELECT DISTINCT user_id, username, full_name FROM screener_subscriptions WHERE status='approved'
+            UNION SELECT DISTINCT user_id, username, full_name FROM premium_subscriptions WHERE status='approved'
+        """)
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows]
+
 
 def _cancel_subscription_sync(user_id, section):
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("""
-        UPDATE subscriptions SET status='cancelled'
-        WHERE user_id=? AND section=? AND status='approved'
-    """, (user_id, section))
+    q = "UPDATE subscriptions SET status='cancelled' WHERE user_id=%s AND section=%s AND status='approved'" if USE_POSTGRES else \
+        "UPDATE subscriptions SET status='cancelled' WHERE user_id=? AND section=? AND status='approved'"
+    c.execute(q, (user_id, section))
     conn.commit()
     conn.close()
+
 
 # ===================== ASYNC WRAPPERS =====================
 
