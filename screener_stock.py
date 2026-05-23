@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
 Azia Quant Bot — Stock Screener Module
-Yahoo Finance + FMP API orqali aksiya tahlili
+Yahoo Finance orqali aksiya tahlili
 """
 
 import yfinance as yf
 import requests
 import feedparser
-from config import FMP_API_KEY, FMP_BASE
 
 
 def _fmt_big(n):
@@ -40,110 +39,46 @@ def _calc_rsi(hist, period=14):
 
 def _rsi_label(rsi):
     if rsi is None: return "N/A"
-    if rsi < 30:  return f"{rsi:.0f} — Oversold 🟢"
+    if rsi < 30:   return f"{rsi:.0f} — Oversold 🟢"
     elif rsi > 70: return f"{rsi:.0f} — Overbought 🔴"
     else:          return f"{rsi:.0f} — Neytral ⚪"
 
 
-def get_stock_news_rss(ticker, company_name):
-    """RSS Feed orqali aksiya yangiliklari"""
+def get_stock_news(ticker, name):
+    """Google News RSS orqali yangiliklar"""
     try:
-        feeds = [
-            f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}&region=US&lang=en-US",
-            f"https://www.investing.com/rss/news_25.rss",
-        ]
         news_txt = ""
-        for feed_url in feeds:
-            feed = feedparser.parse(feed_url)
-            count = 0
-            for entry in feed.entries[:5]:
-                title = (entry.get('title') or '')[:65]
-                link  = entry.get('link') or ''
-                src   = entry.get('source', {}).get('title') or feed.feed.get('title', '')
+        # yfinance news
+        try:
+            stock = yf.Ticker(ticker)
+            news_list = stock.news or []
+            for n in news_list[:3]:
+                title = (n.get('title') or '')[:65]
+                link  = n.get('link') or ''
+                pub   = n.get('publisher') or ''
                 if title and link:
-                    news_txt += f"• <a href='{link}'>{title}</a>\n  📰 {src}\n"
-                    count += 1
-                    if count >= 2: break
-            if news_txt: break
+                    news_txt += f"• <a href='{link}'>{title}</a>\n  📰 {pub}\n"
+            if news_txt:
+                return news_txt
+        except: pass
 
-        if not news_txt:
-            # Google News RSS
-            query = f"{ticker} stock"
-            gfeed = feedparser.parse(f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en")
-            count = 0
-            for entry in gfeed.entries[:5]:
-                title = (entry.get('title') or '')[:65]
-                link  = entry.get('link') or ''
-                if title and link:
-                    news_txt += f"• <a href='{link}'>{title}</a>\n"
-                    count += 1
-                    if count >= 3: break
+        # Google News RSS fallback
+        query = f"{ticker} stock"
+        feed  = feedparser.parse(
+            f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+        )
+        count = 0
+        for entry in feed.entries[:5]:
+            title = (entry.get('title') or '')[:65]
+            link  = entry.get('link') or ''
+            if title and link:
+                news_txt += f"• <a href='{link}'>{title}</a>\n"
+                count += 1
+                if count >= 3: break
 
         return news_txt or "• Yangilik topilmadi\n"
-    except Exception as e:
-        print(f"[ERROR] Stock news RSS: {e}")
+    except:
         return "• Yangilik topilmadi\n"
-
-
-def get_fmp_institutional(ticker):
-    """FMP API — Institutional Ownership"""
-    try:
-        url = f"{FMP_BASE}/institutional-holder/{ticker}?apikey={FMP_API_KEY}"
-        resp = requests.get(url, timeout=10)
-        if resp.status_code != 200: return None
-        data = resp.json()
-        if not data or not isinstance(data, list): return None
-
-        total_shares = sum(h.get('shares', 0) for h in data)
-        top_holders  = data[:5]
-        return {
-            'total_holders': len(data),
-            'top_holders':   top_holders,
-            'total_shares':  total_shares,
-        }
-    except Exception as e:
-        print(f"[ERROR] FMP institutional: {e}")
-        return None
-
-
-def get_fmp_earnings(ticker):
-    """FMP API — Choraklik hisobotlar"""
-    try:
-        url = f"{FMP_BASE}/earnings-surprises/{ticker}?apikey={FMP_API_KEY}"
-        resp = requests.get(url, timeout=10)
-        if resp.status_code != 200: return None
-        data = resp.json()
-        if not data or not isinstance(data, list): return None
-        return data[:4]
-    except Exception as e:
-        print(f"[ERROR] FMP earnings: {e}")
-        return None
-
-
-def get_fmp_insider(ticker):
-    """FMP API — Insider tranzaksiyalar"""
-    try:
-        url = f"{FMP_BASE}/insider-trading?symbol={ticker}&limit=5&apikey={FMP_API_KEY}"
-        resp = requests.get(url, timeout=10)
-        if resp.status_code != 200: return None
-        data = resp.json()
-        if not data or not isinstance(data, list): return None
-        return data[:3]
-    except Exception as e:
-        print(f"[ERROR] FMP insider: {e}")
-        return None
-
-
-def get_fmp_next_earnings(ticker):
-    """FMP API — Keyingi hisobot sanasi"""
-    try:
-        url = f"{FMP_BASE}/earning_calendar?symbol={ticker}&apikey={FMP_API_KEY}"
-        resp = requests.get(url, timeout=10)
-        if resp.status_code != 200: return None
-        data = resp.json()
-        if not data: return None
-        return data[0].get('date', '')
-    except: return None
 
 
 def get_stock_data(ticker: str, is_free: bool = False) -> str:
@@ -167,7 +102,6 @@ def get_stock_data(ticker: str, is_free: bool = False) -> str:
         change_icon = "📈" if change >= 0 else "📉"
         change_sign = "+" if change >= 0 else ""
 
-        # ── BEPUL VERSIYA ──
         if is_free:
             return (
                 f"🔎 <b>{ticker.upper()} — {name}</b>\n"
@@ -181,34 +115,32 @@ def get_stock_data(ticker: str, is_free: bool = False) -> str:
                 f"💎 <b>To'liq tahlil uchun obuna oling!</b>"
             )
 
-        # ── TO'LIQ VERSIYA ──
-        pe_ratio   = info.get('trailingPE') or 0
-        pb_ratio   = info.get('priceToBook') or 0
-        ps_ratio   = info.get('priceToSalesTrailing12Months') or 0
-        ev_ebitda  = info.get('enterpriseToEbitda') or 0
-        eps        = info.get('trailingEps') or 0
-        eps_growth = info.get('earningsGrowth') or 0
-        revenue    = info.get('totalRevenue') or 0
-        net_income = info.get('netIncomeToCommon') or 0
-        gross_m    = info.get('grossMargins') or 0
-        net_m      = info.get('profitMargins') or 0
-        roe        = info.get('returnOnEquity') or 0
-        roa        = info.get('returnOnAssets') or 0
-        debt_eq    = info.get('debtToEquity') or 0
-        fcf        = info.get('freeCashflow') or 0
-        dividend   = info.get('dividendRate') or 0
-        div_yield  = info.get('dividendYield') or 0
-
-        # Dividend yield to'g'ri foiz
-        if div_yield > 1:
+        # Fundamental
+        pe_ratio  = info.get('trailingPE') or 0
+        pb_ratio  = info.get('priceToBook') or 0
+        ps_ratio  = info.get('priceToSalesTrailing12Months') or 0
+        ev_ebitda = info.get('enterpriseToEbitda') or 0
+        eps       = info.get('trailingEps') or 0
+        eps_growth= info.get('earningsGrowth') or 0
+        revenue   = info.get('totalRevenue') or 0
+        net_income= info.get('netIncomeToCommon') or 0
+        gross_m   = info.get('grossMargins') or 0
+        net_m     = info.get('profitMargins') or 0
+        roe       = info.get('returnOnEquity') or 0
+        roa       = info.get('returnOnAssets') or 0
+        debt_eq   = info.get('debtToEquity') or 0
+        fcf       = info.get('freeCashflow') or 0
+        dividend  = info.get('dividendRate') or 0
+        div_yield = info.get('dividendYield') or 0
+        if div_yield and div_yield > 1:
             div_yield = div_yield / 100
 
-        beta   = info.get('beta') or 0
-        ma50   = info.get('fiftyDayAverage') or 0
-        ma200  = info.get('twoHundredDayAverage') or 0
+        # Texnik
+        beta  = info.get('beta') or 0
+        ma50  = info.get('fiftyDayAverage') or 0
+        ma200 = info.get('twoHundredDayAverage') or 0
         short_pct = info.get('shortPercentOfFloat') or 0
 
-        # RSI
         hist    = stock.history(period="1mo")
         rsi_val = _calc_rsi(hist)
         rsi_txt = _rsi_label(rsi_val)
@@ -223,9 +155,9 @@ def get_stock_data(ticker: str, is_free: bool = False) -> str:
             w52_pos_txt = "N/A"
 
         # Analyst
-        rec          = (info.get('recommendationKey') or 'N/A').upper()
-        target_price = info.get('targetMeanPrice') or 0
-        analyst_num  = info.get('numberOfAnalystOpinions') or 0
+        rec         = (info.get('recommendationKey') or 'N/A').upper()
+        target_price= info.get('targetMeanPrice') or 0
+        analyst_num = info.get('numberOfAnalystOpinions') or 0
         rec_map = {
             'STRONG_BUY': 'KUCHLI SOTIB OL 🟢',
             'BUY':        'SOTIB OL ✅',
@@ -235,71 +167,65 @@ def get_stock_data(ticker: str, is_free: bool = False) -> str:
         }
         rec_txt = rec_map.get(rec, rec)
 
-        # ── FMP: Institutional ──
-        inst_data = get_fmp_institutional(ticker)
-        if inst_data and inst_data['top_holders']:
-            inst_txt = f"• Jami institutlar: {inst_data['total_holders']} ta\n"
-            for h in inst_data['top_holders'][:3]:
-                hname   = h.get('holder', 'N/A')
-                hshares = h.get('shares', 0)
-                inst_txt += f"• {hname}: {hshares:,} aksiya\n"
+        # Institutional
+        inst_pct    = info.get('institutionPercentHeld') or 0
+        insider_pct = info.get('insiderPercentHeld') or 0
+        if inst_pct > 0:
+            inst_txt = f"• Fondlar ulushi: {inst_pct*100:.1f}%\n• Insider ulushi: {insider_pct*100:.1f}%\n"
         else:
-            inst_pct  = info.get('institutionPercentHeld') or 0
-            inst_txt  = f"• Fondlar ulushi: {inst_pct*100:.1f}%\n" if inst_pct else "• Ma'lumot topilmadi\n"
+            inst_txt = "• Ma'lumot yuklanmoqda\n"
 
-        # ── FMP: Insider ──
-        fmp_insider = get_fmp_insider(ticker)
-        if fmp_insider:
+        # Insider tranzaksiyalar
+        try:
+            idf = stock.insider_transactions
             insider_txt = ""
-            for t in fmp_insider:
-                iname  = t.get('reportingName') or t.get('transactionType') or 'N/A'
-                itype  = t.get('transactionType') or ''
-                ishares= abs(t.get('securitiesTransacted') or 0)
-                ival   = abs(t.get('transactionPrice') or 0) * ishares
-                idate  = (t.get('transactionDate') or '')[:10]
-                icon   = "OLDI ✅" if 'P' in itype.upper() or 'BUY' in itype.upper() else "SOTDI ⚠️"
-                insider_txt += f"• {iname}: {ishares:,.0f} aksiya {icon}\n  {_fmt_big(ival)} | {idate}\n"
-        else:
-            # yfinance fallback
-            try:
-                idf = stock.insider_transactions
-                insider_txt = ""
-                if idf is not None and not idf.empty:
-                    for _, row in idf.head(3).iterrows():
-                        iname   = row.get('Name') or row.get('Insider') or "Noma'lum"
-                        ishares = row.get('Shares') or 0
-                        ival    = row.get('Value') or 0
-                        idate   = str(row.get('Start Date') or '')[:10]
-                        icon    = "SOTDI ⚠️" if float(ishares) < 0 else "OLDI ✅"
-                        insider_txt += f"• {iname}: {abs(float(ishares)):,.0f} aksiya {icon}\n  {_fmt_big(abs(float(ival)))} | {idate}\n"
-                if not insider_txt:
-                    insider_txt = "• Ma'lumot topilmadi\n"
-            except:
+            if idf is not None and not idf.empty:
+                for _, row in idf.head(3).iterrows():
+                    iname   = (str(row.get('Name') or row.get('Insider') or "Noma'lum"))[:30]
+                    ishares = float(row.get('Shares') or 0)
+                    ival    = float(row.get('Value') or 0)
+                    idate   = str(row.get('Start Date') or row.get('startDate') or '')[:10]
+                    icon    = "SOTDI ⚠️" if ishares < 0 else "OLDI ✅"
+                    insider_txt += f"• {iname}: {abs(ishares):,.0f} {icon}\n  {_fmt_big(abs(ival))} | {idate}\n"
+            if not insider_txt:
                 insider_txt = "• Ma'lumot topilmadi\n"
+        except:
+            insider_txt = "• Ma'lumot topilmadi\n"
 
-        # ── FMP: Choraklik hisobotlar ──
-        fmp_earnings = get_fmp_earnings(ticker)
-        if fmp_earnings:
+        # Choraklik hisobotlar
+        try:
             earnings_txt = ""
-            for e in fmp_earnings[:4]:
-                date_str = (e.get('date') or '')[:10]
-                eps_est  = e.get('estimatedEps') or 0
-                eps_act  = e.get('actualEarningResult') or 0
-                if eps_est and eps_act:
-                    diff = ((float(eps_act) - float(eps_est)) / abs(float(eps_est))) * 100 if eps_est else 0
-                    icon = "✅" if diff >= 0 else "❌"
-                    earnings_txt += f"• {date_str}: ${float(eps_act):.2f} (kutilgan ${float(eps_est):.2f}) {diff:+.1f}% {icon}\n"
-        else:
+            # Yangi usul
+            eh = stock.earnings_history
+            if eh is not None and not eh.empty:
+                for _, row in eh.head(4).iterrows():
+                    date_str = str(getattr(row, 'name', '') or '')[:10]
+                    eps_est  = float(row.get('epsEstimate') or 0)
+                    eps_act  = float(row.get('epsActual') or 0)
+                    if eps_est and eps_act:
+                        diff = ((eps_act - eps_est) / abs(eps_est)) * 100
+                        icon = "✅" if diff >= 0 else "❌"
+                        earnings_txt += f"• {date_str}: ${eps_act:.2f} (kut. ${eps_est:.2f}) {diff:+.1f}% {icon}\n"
+
+            if not earnings_txt:
+                ed = stock.earnings_dates
+                if ed is not None and not ed.empty:
+                    for idx, row in ed.head(4).iterrows():
+                        date_str = str(idx)[:10]
+                        eps_est  = float(row.get('EPS Estimate') or 0)
+                        eps_act  = float(row.get('Reported EPS') or 0)
+                        if eps_est and eps_act and eps_act != 0:
+                            diff = ((eps_act - eps_est) / abs(eps_est)) * 100
+                            icon = "✅" if diff >= 0 else "❌"
+                            earnings_txt += f"• {date_str}: ${eps_act:.2f} (kut. ${eps_est:.2f}) {diff:+.1f}% {icon}\n"
+
+            if not earnings_txt:
+                earnings_txt = "• Ma'lumot topilmadi\n"
+        except:
             earnings_txt = "• Ma'lumot topilmadi\n"
 
-        # Keyingi hisobot
-        next_earn = get_fmp_next_earnings(ticker)
-        if next_earn:
-            earnings_txt += f"\n📅 Keyingi hisobot: {next_earn}"
-
-        # ── Yangiliklar (RSS) ──
-        news_txt = get_stock_news_rss(ticker, name)
-
+        # Yangiliklar
+        news_txt  = get_stock_news(ticker, name)
         short_txt = f"{short_pct*100:.1f}% ({'Yuqori ⚠️' if short_pct > 0.1 else 'Normal ✅'})" if short_pct else "N/A"
 
         return (
@@ -348,7 +274,7 @@ def get_stock_data(ticker: str, is_free: bool = False) -> str:
             f"{insider_txt}\n"
 
             f"📋 <b>CHORAKLIK HISOBOTLAR:</b>\n"
-            f"{earnings_txt}\n\n"
+            f"{earnings_txt}\n"
 
             f"📰 <b>YANGILIKLAR:</b>\n"
             f"{news_txt}\n"
