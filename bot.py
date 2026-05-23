@@ -1259,11 +1259,20 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── PROMO KOD ──
     elif data.startswith("promo_"):
-        parts    = data.split("_")
-        if parts[1] == "skip":
-            sub_type = parts[2]
-            sub_id   = int(parts[3])
-            price    = int(float(parts[4]))
+        # Format: promo_{sub_type}_{sub_id}_{price}
+        # sub_type: channel, screener, onchain_screener, premium
+        # Oxirgi 2 ta qism: sub_id va price
+        parts     = data.split("_")
+        price     = int(float(parts[-1]))
+        sub_id    = int(parts[-2])
+        # sub_type qolgan qismlar
+        sub_type  = "_".join(parts[1:-2])
+
+        if sub_type == "skip":
+            # promo_skip_{sub_type}_{sub_id}_{price}
+            price    = int(float(parts[-1]))
+            sub_id   = int(parts[-2])
+            sub_type = "_".join(parts[2:-2])
             context.user_data['waiting_payment'] = True
             context.user_data['sub_id']          = sub_id
             context.user_data['sub_type']        = sub_type
@@ -1279,9 +1288,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=back_menu()
             )
         else:
-            sub_type = parts[1]
-            sub_id   = int(parts[2])
-            price    = int(float(parts[3]))
             context.user_data['promo_pending'] = {
                 'sub_type': sub_type,
                 'sub_id':   sub_id,
