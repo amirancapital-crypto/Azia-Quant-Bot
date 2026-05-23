@@ -64,7 +64,7 @@ from keyboards import (
 from screener_stock import get_stock_data
 from screener_crypto import get_crypto_data, get_coin_id
 from onchain import format_onchain_report, format_market_status
-from ai_module import ask_gemini
+from ai_module import ask_ai
 
 
 # ===================== YORDAMCHI FUNKSIYALAR =====================
@@ -1538,7 +1538,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Gemini ga yuborish
-        response = await asyncio.to_thread(ask_gemini, text, history)
+        response = await asyncio.to_thread(ask_ai, text, history)
 
         # Tarixga qo'shish
         history.append({"role": "user",  "parts": [{"text": text}]})
