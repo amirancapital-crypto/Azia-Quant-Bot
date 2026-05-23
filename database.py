@@ -1265,3 +1265,27 @@ async def get_non_subscribers():
 
 async def get_all_bot_users():
     return await asyncio.to_thread(_get_all_bot_users_sync)
+
+
+def _get_all_promos_sync():
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT * FROM promo_codes ORDER BY created_at DESC")
+    rows = c.fetchall()
+    conn.close()
+    return [_row_to_dict(r) for r in rows]
+
+def _delete_promo_code_sync(code):
+    conn = get_conn()
+    c = conn.cursor()
+    q = "DELETE FROM promo_codes WHERE code=%s" if USE_POSTGRES else \
+        "DELETE FROM promo_codes WHERE code=?"
+    c.execute(q, (code,))
+    conn.commit()
+    conn.close()
+
+async def get_all_promos():
+    return await asyncio.to_thread(_get_all_promos_sync)
+
+async def delete_promo_code(code):
+    await asyncio.to_thread(_delete_promo_code_sync, code)
