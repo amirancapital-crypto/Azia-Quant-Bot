@@ -8,14 +8,15 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from config import SIGNAL_PRICES, SCREENER_PRICES, CRYPTO_EDU_PRICE, STOCK_EDU_PRICE, PREMIUM_PRICE
 
 
-def main_menu():
+def main_menu(is_admin=False):
     """Bosh menyu"""
-    return InlineKeyboardMarkup([
+    buttons = [
         [InlineKeyboardButton("📊 Signals",                    callback_data="sec_signals")],
         [InlineKeyboardButton("🔗 Onchain + Screener",         callback_data="sec_onchain")],
         [InlineKeyboardButton("📚 Crypto Darslar",             callback_data="sec_crypto_edu")],
         [InlineKeyboardButton("📈 Fond Bozori Darslar",        callback_data="sec_stock_edu")],
         [InlineKeyboardButton("🤖 Quant Trading",              callback_data="sec_quant")],
+        [InlineKeyboardButton("🧠 AI Moliyaviy Yordamchi",     callback_data="sec_ai")],
         [InlineKeyboardButton("💎 Premium To'liq Paket",       callback_data="sec_premium")],
         [InlineKeyboardButton("━━━━━━━━━━━━━━━━━━━━", callback_data="sep")],
         [InlineKeyboardButton("🆓 Bepul Xizmatlar",            callback_data="sec_free")],
@@ -23,7 +24,10 @@ def main_menu():
         [InlineKeyboardButton("👤 Mening Obunalarim",          callback_data="my_subs")],
         [InlineKeyboardButton("👥 Referral",                   callback_data="referral_menu")],
         [InlineKeyboardButton("💬 Admin bilan aloqa",          callback_data="sec_admin")],
-    ])
+    ]
+    if is_admin:
+        buttons.append([InlineKeyboardButton("👨‍💼 Admin Panel",  callback_data="open_admin")])
+    return InlineKeyboardMarkup(buttons)
 
 
 def back_menu():
