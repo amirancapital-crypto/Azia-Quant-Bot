@@ -1016,9 +1016,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not await is_admin(user):
             await q.answer("❌ Ruxsat yo'q!", show_alert=True)
             return
-        stats = await get_stats()
+        stats    = await get_stats()
+        all_users = await get_all_bot_users()
+        non_subs  = await get_non_subscribers()
         txt = (
             f"📊 <b>Statistika</b>\n\n"
+            f"👤 Jami /start bosganlar: {len(all_users)}\n"
+            f"🆓 Obuna bo'lmaganlar: {len(non_subs)}\n\n"
             f"👥 Kanal obunachlar: {stats.get('channel_subs', 0)}\n"
             f"🔍 Screener obunachlar: {stats.get('screener_subs', 0)}\n"
             f"💎 Premium obunachlar: {stats.get('premium_subs', 0)}\n"
