@@ -179,6 +179,7 @@ CRYPTOPANIC_KEY = os.environ.get("CRYPTOPANIC_KEY", "")
 ETHERSCAN_KEY   = os.environ.get("ETHERSCAN_KEY", "")
 CLAUDE_API_KEY  = os.environ.get("CLAUDE_API_KEY", "")
 OPENAI_API_KEY  = os.environ.get("OPENAI_API_KEY", "")
+GEMINI_API_KEY  = os.environ.get("GEMINI_API_KEY", "AIzaSyACIt_Jluw4LRXy2I5b7UWqWIMC0kKK93I")
 HALAL_API_KEY   = os.environ.get("HALAL_TERMINAL_KEY", "")
 FMP_API_KEY     = os.environ.get("FMP_API_KEY", "oXP5gpgNVIZpzRyDSNXLoVwRnACXmptw")
 FMP_BASE        = "https://financialmodelingprep.com/api/v3"
