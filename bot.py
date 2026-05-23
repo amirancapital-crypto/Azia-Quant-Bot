@@ -48,6 +48,7 @@ from database import (
     save_search, get_search_history,
     get_stats, get_all_users, cancel_subscription,
     save_user, get_non_subscribers, get_all_bot_users,
+    get_all_promos, delete_promo_code,
 )
 from keyboards import (
     main_menu, back_menu, home_menu, confirm_menu,
@@ -970,6 +971,45 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=back_menu()
         )
 
+    elif data == "admin_promo_list":
+        if not await is_admin(user):
+            await q.answer("❌ Ruxsat yo'q!", show_alert=True)
+            return
+        promos = await get_all_promos()
+        if not promos:
+            await q.edit_message_text(
+                "🎟 Hozircha promo kod yo'q.",
+                parse_mode="HTML",
+                reply_markup=admin_main_menu()
+            )
+            return
+        txt = "🎟 <b>Promo Kodlar:</b>\n\n"
+        buttons = []
+        for p in promos:
+            txt += (
+                f"• <code>{p['code']}</code> — {p['discount_pct']}% "
+                f"({p['used_count']}/{p['max_uses']})\n"
+            )
+            buttons.append([InlineKeyboardButton(
+                f"❌ {p['code']} o'chirish",
+                callback_data=f"admin_promo_del_{p['code']}"
+            )])
+        buttons.append([InlineKeyboardButton("⬅️ Ortga", callback_data="admin_stats")])
+        await q.edit_message_text(txt, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(buttons))
+
+    elif data.startswith("admin_promo_del_"):
+        if not await is_admin(user):
+            await q.answer("❌ Ruxsat yo'q!", show_alert=True)
+            return
+        code = data.replace("admin_promo_del_", "")
+        await delete_promo_code(code)
+        await q.answer(f"✅ {code} o'chirildi!", show_alert=True)
+        await q.edit_message_text(
+            "✅ Promo kod o'chirildi!",
+            parse_mode="HTML",
+            reply_markup=admin_main_menu()
+        )
+
     elif data == "admin_affiliates":
         if not await is_admin(user):
             await q.answer("❌ Ruxsat yo'q!", show_alert=True)
@@ -1412,8 +1452,10 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         await use_promo_code(text.upper())
-        discount   = promo['discount_pct']
-        final_price = info['price'] * (1 - discount / 100)
+        discount    = promo['discount_pct']
+        # Chegirma 100% dan oshmasligi kerak
+        discount    = min(discount, 100)
+        final_price = max(0, info['price'] * (1 - discount / 100))
 
         # Sub type ga qarab nom olish
         section_map = {
