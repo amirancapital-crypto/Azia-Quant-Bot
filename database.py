@@ -1199,6 +1199,33 @@ async def cancel_subscription(user_id, section):
     await asyncio.to_thread(_cancel_subscription_sync, user_id, section)
 
 
+def _cancel_screener_subscription_sync(user_id):
+    conn = get_conn()
+    c = conn.cursor()
+    q = "UPDATE screener_subscriptions SET status='cancelled' WHERE user_id=%s AND status='approved'" if USE_POSTGRES else \
+        "UPDATE screener_subscriptions SET status='cancelled' WHERE user_id=? AND status='approved'"
+    c.execute(q, (user_id,))
+    conn.commit()
+    conn.close()
+
+
+def _cancel_premium_subscription_sync(user_id):
+    conn = get_conn()
+    c = conn.cursor()
+    q = "UPDATE premium_subscriptions SET status='cancelled' WHERE user_id=%s AND status='approved'" if USE_POSTGRES else \
+        "UPDATE premium_subscriptions SET status='cancelled' WHERE user_id=? AND status='approved'"
+    c.execute(q, (user_id,))
+    conn.commit()
+    conn.close()
+
+
+async def cancel_screener_subscription(user_id):
+    await asyncio.to_thread(_cancel_screener_subscription_sync, user_id)
+
+async def cancel_premium_subscription(user_id):
+    await asyncio.to_thread(_cancel_premium_subscription_sync, user_id)
+
+
 # ===================== USERS =====================
 
 def _save_user_sync(user_id, username, full_name):
