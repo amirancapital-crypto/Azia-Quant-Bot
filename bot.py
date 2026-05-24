@@ -798,6 +798,111 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await q.edit_message_text(txt, parse_mode="HTML", reply_markup=home_menu())
 
+    # ── MENING PORTFELIM ──
+    elif data == "my_portfolio":
+        # Obuna tekshirish
+        has_access = (
+            await check_channel_access(user.id, "signals") or
+            await check_channel_access(user.id, "onchain") or
+            await check_screener_access(user.id) or
+            await check_channel_access(user.id, "crypto_edu") or
+            await check_premium_access(user.id)
+        )
+
+        if not has_access:
+            await q.edit_message_text(
+                "💼 <b>Mening Portfelim</b>\n\n"
+                "⛔ Bu funksiya faqat obunachilarga mavjud!\n\n"
+                "Quyidagi bo'limlardan birini oling:\n"
+                "• 📊 Signals\n"
+                "• 🔗 Onchain + Screener\n"
+                "• 📚 Crypto Darslar\n"
+                "• 💎 Premium paket\n\n"
+                "Obuna olib, portfelingizdagi aktivlar\n"
+                "bo'yicha yangiliklar chiqsa darhol\n"
+                "xabar oling! 🔔",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("💎 Obuna olish", callback_data="sec_premium")],
+                    [InlineKeyboardButton("🏠 Bosh menyu", callback_data="back")],
+                ])
+            )
+            return
+
+        items = await get_portfolio(user.id)
+        if not items:
+            await q.edit_message_text(
+                "💼 <b>Mening Portfelim</b>\n\n"
+                "Portfelingiz bo'sh!\n\n"
+                "Aktivlaringizni qo'shing — bot yangiliklar\n"
+                "chiqsa darhol xabar beradi! 🔔\n\n"
+                "Qo'shish uchun ticker yozing:\n"
+                "Masalan: <code>BTC</code>, <code>AAPL</code>, <code>ETH</code>",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("➕ Aktiv qo'shish", callback_data="portfolio_add_new")],
+                    [InlineKeyboardButton("⬅️ Ortga", callback_data="back"), 
+                     InlineKeyboardButton("🏠 Bosh menyu", callback_data="back")],
+                ])
+            )
+        else:
+            txt = "💼 <b>Mening Portfelim</b>\n\n"
+            txt += "📋 <b>Kuzatilayotgan aktivlar:</b>\n"
+            for item in items:
+                ticker = item.get('ticker', '')
+                t_type = item.get('ticker_type', '')
+                icon = "₿" if t_type == 'crypto' else "📈"
+                txt += f"{icon} <code>{ticker}</code>\n"
+            txt += f"\n🔔 Jami: {len(items)} ta aktiv kuzatilmoqda\n"
+            txt += "\n💡 Yangi muhim yangilik chiqsa — darhol xabar beraman!"
+
+            buttons = []
+            for item in items:
+                buttons.append([InlineKeyboardButton(
+                    f"❌ {item['ticker']} o'chirish",
+                    callback_data=f"portfolio_del_{item['id']}"
+                )])
+            buttons.append([InlineKeyboardButton("➕ Aktiv qo'shish", callback_data="portfolio_watch_new")])
+            buttons.append([InlineKeyboardButton("📰 Hozir yangiliklar", callback_data="portfolio_news")])
+            buttons.append([
+                InlineKeyboardButton("⬅️ Ortga", callback_data="back"),
+                InlineKeyboardButton("🏠 Bosh menyu", callback_data="back"),
+            ])
+            await q.edit_message_text(
+                txt, parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
+
+    elif data == "portfolio_watch_new":
+        context.user_data['portfolio_watch'] = True
+        await q.edit_message_text(
+            "💼 <b>Aktiv qo'shish</b>\n\n"
+            "Kuzatmoqchi bo'lgan ticker yozing:\n\n"
+            "• Crypto: <code>BTC</code>, <code>ETH</code>, <code>SOL</code>\n"
+            "• Aksiya: <code>AAPL</code>, <code>TSLA</code>, <code>NVDA</code>",
+            parse_mode="HTML",
+            reply_markup=section_back_menu('my_portfolio')
+        )
+
+    elif data == "portfolio_news":
+        await q.edit_message_text("⏳ Portfelingizdagi aktivlar bo'yicha yangiliklar olinmoqda...", parse_mode="HTML")
+        items = await get_portfolio(user.id)
+        if not items:
+            await q.edit_message_text(
+                "💼 Portfelingiz bo'sh!",
+                parse_mode="HTML",
+                reply_markup=section_back_menu('my_portfolio')
+            )
+            return
+
+        news_txt = await asyncio.to_thread(get_portfolio_news, items)
+        await q.edit_message_text(
+            news_txt,
+            parse_mode="HTML",
+            reply_markup=section_back_menu('my_portfolio'),
+            disable_web_page_preview=True
+        )
+
     # ━━━━━━━━━━━━━━━━━━━━
     # ── SCREENER (PULLIK) ──
     elif data.startswith("refresh_"):
@@ -1611,6 +1716,31 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ── Portfolio Watch (yangi aktiv qo'shish) ──
+    if udata.get('portfolio_watch'):
+        udata.pop('portfolio_watch', None)
+        ticker = text.upper().strip()
+
+        # Crypto yoki aksiya aniqlash
+        crypto_list = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'DOGE',
+                       'AVAX', 'DOT', 'MATIC', 'LINK', 'UNI', 'ATOM', 'LTC']
+        t_type = 'crypto' if ticker in crypto_list else 'stock'
+
+        # Portfelga qo'shish (soni va narx 0 — faqat kuzatuv)
+        await add_portfolio(user.id, ticker, t_type, 0, 0)
+
+        await update.message.reply_text(
+            f"✅ <b>{ticker}</b> portfelingizga qo'shildi!\n\n"
+            f"🔔 Endi {ticker} haqida yangilik chiqsa darhol xabar beraman!\n\n"
+            f"💼 Boshqa aktiv qo'shish uchun yana yozing.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("💼 Portfelni ko'rish", callback_data="my_portfolio")],
+                [InlineKeyboardButton("🏠 Bosh menyu",        callback_data="back")],
+            ])
+        )
+        return
+
     # ── Promo kod tekshirish ──
     if udata.get('promo_pending'):
         info     = udata.pop('promo_pending')
@@ -2001,7 +2131,10 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         InlineKeyboardButton("📌 Portfelga",      callback_data=f"portfolio_add_{t_type}_{ticker}"),
                     ],
                     [InlineKeyboardButton("🔄 Yana qidirish", callback_data=again_cb)],
-                    [InlineKeyboardButton("🏠 Bosh menyu",    callback_data="back")],
+                    [
+                        InlineKeyboardButton("⬅️ Ortga",      callback_data=again_cb),
+                        InlineKeyboardButton("🏠 Bosh menyu", callback_data="back"),
+                    ],
                 ]),
                 disable_web_page_preview=True
             )
@@ -2196,7 +2329,101 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ===================== YORDAMCHI FUNKSIYALAR =====================
 
-async def get_bot_username(context):
+def get_portfolio_news(items: list) -> str:
+    """Portfolio aktivlari bo'yicha yangiliklar RSS dan olish"""
+    import feedparser
+
+    tickers = [item.get('ticker', '').upper() for item in items]
+    if not tickers:
+        return "💼 Portfelingiz bo'sh!"
+
+    feeds = [
+        ("CoinDesk",      "https://www.coindesk.com/arc/outboundfeeds/rss/"),
+        ("CoinTelegraph",  "https://cointelegraph.com/rss"),
+        ("Reuters",        "https://feeds.reuters.com/reuters/businessNews"),
+        ("Yahoo Finance",  "https://finance.yahoo.com/news/rssindex"),
+        ("Seeking Alpha",  "https://seekingalpha.com/market_currents.xml"),
+    ]
+
+    found_news = []
+
+    # Salbiy kalit so'zlar
+    negative_words = [
+        'crash', 'fall', 'drop', 'decline', 'down', 'loss', 'sell', 'bear',
+        'hack', 'breach', 'ban', 'lawsuit', 'fraud', 'bankrupt', 'delist',
+        'warning', 'risk', 'concern', 'problem', 'issue', 'fail', 'collapse',
+        'tushdi', 'pasaydi', 'muammo', 'xavf', 'zarar', 'taqiq'
+    ]
+
+    # Ijobiy kalit so'zlar
+    positive_words = [
+        'surge', 'rise', 'gain', 'up', 'bull', 'buy', 'growth', 'profit',
+        'partnership', 'launch', 'upgrade', 'approval', 'record', 'high',
+        'ko\'tarildi', 'o\'sdi', 'yangi', 'yuqori', 'rekord'
+    ]
+
+    for src, url in feeds:
+        try:
+            feed = feedparser.parse(url)
+            for entry in feed.entries[:15]:
+                title = (entry.get('title') or '').strip()
+                link  = entry.get('link') or ''
+                if not title:
+                    continue
+
+                title_upper = title.upper()
+
+                # Portfolio aktivlaridan biri bor?
+                matched_ticker = None
+                for ticker in tickers:
+                    if ticker in title_upper:
+                        matched_ticker = ticker
+                        break
+
+                if not matched_ticker:
+                    continue
+
+                # Salbiy yoki ijobiy?
+                title_lower = title.lower()
+                is_negative = any(w in title_lower for w in negative_words)
+                is_positive = any(w in title_lower for w in positive_words)
+
+                sentiment = "⚠️" if is_negative else ("📈" if is_positive else "📰")
+                alert     = "🚨 <b>SALBIY YANGILIK!</b>\n" if is_negative else ""
+
+                found_news.append({
+                    'ticker':    matched_ticker,
+                    'title':     title,
+                    'link':      link,
+                    'sentiment': sentiment,
+                    'alert':     alert,
+                    'negative':  is_negative,
+                })
+        except:
+            continue
+
+    if not found_news:
+        tickers_str = ', '.join(tickers)
+        return (
+            f"💼 <b>Portfel Yangiliklari</b>\n\n"
+            f"📋 Kuzatilayotgan: {tickers_str}\n\n"
+            f"📰 Hozircha yangilik topilmadi.\n"
+            f"Bot har 30 daqiqada tekshirib turadi!"
+        )
+
+    # Salbiylarni oldin ko'rsat
+    found_news.sort(key=lambda x: x['negative'], reverse=True)
+
+    txt = f"💼 <b>Portfel Yangiliklari</b>\n\n"
+    txt += f"📋 Kuzatilayotgan: {', '.join(tickers)}\n"
+    txt += "━━━━━━━━━━━━━━━━━━━━\n\n"
+
+    for news in found_news[:8]:
+        txt += f"{news['alert']}"
+        txt += f"{news['sentiment']} <b>{news['ticker']}</b>\n"
+        txt += f"<a href='{news['link']}'>{news['title'][:70]}</a>\n\n"
+
+    return txt
     """Bot username ni olish"""
     try:
         bot = await context.bot.get_me()
@@ -2459,6 +2686,102 @@ def calculate(mode: str, text: str) -> str:
 
 # ===================== MUDDATI TUGAGAN OBUNALAR =====================
 
+async def check_portfolio_news(context: ContextTypes.DEFAULT_TYPE):
+    """Har 30 daqiqada barcha foydalanuvchilar portfolio yangiliklar tekshiruvi"""
+    try:
+        import feedparser
+
+        # Barcha foydalanuvchilarni olish
+        all_users = await get_all_bot_users()
+        if not all_users:
+            return
+
+        # Salbiy kalit so'zlar
+        negative_words = [
+            'crash', 'fall', 'drop', 'decline', 'down', 'loss', 'sell',
+            'hack', 'breach', 'ban', 'lawsuit', 'fraud', 'bankrupt', 'delist',
+            'warning', 'risk', 'collapse', 'suspend', 'halt', 'plunge',
+        ]
+
+        # RSS manbalar
+        feeds = [
+            "https://www.coindesk.com/arc/outboundfeeds/rss/",
+            "https://cointelegraph.com/rss",
+            "https://feeds.reuters.com/reuters/businessNews",
+            "https://finance.yahoo.com/news/rssindex",
+        ]
+
+        # Barcha yangiliklar
+        all_news = []
+        for url in feeds:
+            try:
+                feed = feedparser.parse(url)
+                for entry in feed.entries[:10]:
+                    title = (entry.get('title') or '').strip()
+                    link  = entry.get('link') or ''
+                    if title and link:
+                        all_news.append({'title': title, 'link': link})
+            except:
+                continue
+
+        if not all_news:
+            return
+
+        # Har bir foydalanuvchi uchun tekshirish
+        for u in all_users:
+            uid = u.get('user_id')
+            if not uid:
+                continue
+
+            items = await get_portfolio(uid)
+            if not items:
+                continue
+
+            tickers = [item.get('ticker', '').upper() for item in items]
+
+            for news in all_news:
+                title_upper = news['title'].upper()
+                title_lower = news['title'].lower()
+
+                # Ticker bor?
+                matched = None
+                for ticker in tickers:
+                    if ticker in title_upper:
+                        matched = ticker
+                        break
+
+                if not matched:
+                    continue
+
+                # Salbiy?
+                is_negative = any(w in title_lower for w in negative_words)
+                if not is_negative:
+                    continue
+
+                # Xabar yuborish
+                try:
+                    await context.bot.send_message(
+                        chat_id=uid,
+                        text=(
+                            f"🚨 <b>PORTFEL OGOHLANTIRISHI!</b>\n\n"
+                            f"📌 Aktiv: <b>{matched}</b>\n\n"
+                            f"⚠️ Salbiy yangilik:\n"
+                            f"<a href='{news['link']}'>{news['title'][:100]}</a>\n\n"
+                            f"💡 Portfelingizni tekshiring!"
+                        ),
+                        parse_mode="HTML",
+                        disable_web_page_preview=False,
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("💼 Portfelni ko'rish", callback_data="my_portfolio")
+                        ]])
+                    )
+                    await asyncio.sleep(0.1)
+                except:
+                    pass
+    except Exception as e:
+        print(f"[ERROR] check_portfolio_news: {e}")
+
+
 async def check_expired(context: ContextTypes.DEFAULT_TYPE):
     """Muddati tugagan obunalarni tekshirish"""
     # Kanal obunalar
@@ -2669,8 +2992,9 @@ def main():
 
     # Scheduler
     if app.job_queue:
-        app.job_queue.run_repeating(check_expired,    interval=3600,  first=60)
-        app.job_queue.run_repeating(check_alerts,     interval=300,   first=30)
+        app.job_queue.run_repeating(check_expired,       interval=3600,  first=60)
+        app.job_queue.run_repeating(check_alerts,        interval=300,   first=30)
+        app.job_queue.run_repeating(check_portfolio_news, interval=1800, first=120)
 
     print("[SUCCESS] Azia Quant Bot ishga tushdi! 🚀")
     app.run_polling(allowed_updates=["message", "callback_query"])
