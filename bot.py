@@ -1676,7 +1676,7 @@ async def process_referral_reward(user_id, section_name, context):
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Matn xabarlarini qabul qilish"""
     user    = update.effective_user
-    text    = update.message.text.strip()
+    text    = (update.message.text or update.message.caption or "").strip()
     udata   = context.user_data
 
     # ── AI Yordamchi ──
@@ -1820,11 +1820,20 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📢 Yuborilmoqda... ({len(users)} ta obunachi)")
         for u in users:
             try:
-                await context.bot.send_message(
-                    chat_id=u['user_id'],
-                    text=text,
-                    parse_mode="HTML"
-                )
+                if update.message.photo:
+                    photo = update.message.photo[-1].file_id
+                    await context.bot.send_photo(
+                        chat_id=u['user_id'],
+                        photo=photo,
+                        caption=text,
+                        parse_mode="HTML"
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=u['user_id'],
+                        text=text,
+                        parse_mode="HTML"
+                    )
                 success += 1
                 await asyncio.sleep(0.1)
             except:
@@ -1844,11 +1853,20 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📣 Yuborilmoqda... ({len(nonsubs)} ta foydalanuvchi)")
         for u in nonsubs:
             try:
-                await context.bot.send_message(
-                    chat_id=u['user_id'],
-                    text=text,
-                    parse_mode="HTML"
-                )
+                if update.message.photo:
+                    photo = update.message.photo[-1].file_id
+                    await context.bot.send_photo(
+                        chat_id=u['user_id'],
+                        photo=photo,
+                        caption=text,
+                        parse_mode="HTML"
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=u['user_id'],
+                        text=text,
+                        parse_mode="HTML"
+                    )
                 success += 1
                 await asyncio.sleep(0.1)
             except:
@@ -2211,9 +2229,63 @@ async def screener_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ===================== FOTO HANDLER =====================
 
 async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """To'lov cheki qabul qilish"""
+    """To'lov cheki qabul qilish va broadcast"""
     user  = update.effective_user
     udata = context.user_data
+
+    # ── Admin broadcast rasm bilan ──
+    if udata.get('admin_broadcast') and await is_admin(user):
+        udata.pop('admin_broadcast', None)
+        caption = update.message.caption or ""
+        users   = await get_all_users()
+        success = 0
+        failed  = 0
+        await update.message.reply_text(f"📢 Yuborilmoqda... ({len(users)} ta obunachi)")
+        photo = update.message.photo[-1].file_id
+        for u in users:
+            try:
+                await context.bot.send_photo(
+                    chat_id=u['user_id'],
+                    photo=photo,
+                    caption=caption,
+                    parse_mode="HTML"
+                )
+                success += 1
+                await asyncio.sleep(0.1)
+            except:
+                failed += 1
+        await update.message.reply_text(
+            f"✅ Yuborildi: {success} ta\n❌ Xato: {failed} ta",
+            reply_markup=admin_main_menu()
+        )
+        return
+
+    # ── Admin broadcast_nonsub rasm bilan ──
+    if udata.get('admin_broadcast_nonsub') and await is_admin(user):
+        udata.pop('admin_broadcast_nonsub', None)
+        caption = update.message.caption or ""
+        nonsubs = await get_non_subscribers()
+        success = 0
+        failed  = 0
+        await update.message.reply_text(f"📣 Yuborilmoqda... ({len(nonsubs)} ta foydalanuvchi)")
+        photo = update.message.photo[-1].file_id
+        for u in nonsubs:
+            try:
+                await context.bot.send_photo(
+                    chat_id=u['user_id'],
+                    photo=photo,
+                    caption=caption,
+                    parse_mode="HTML"
+                )
+                success += 1
+                await asyncio.sleep(0.1)
+            except:
+                failed += 1
+        await update.message.reply_text(
+            f"✅ Yuborildi: {success} ta\n❌ Xato: {failed} ta",
+            reply_markup=admin_main_menu()
+        )
+        return
 
     if not udata.get('waiting_payment'):
         return
