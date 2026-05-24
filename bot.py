@@ -800,35 +800,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── MENING PORTFELIM ──
     elif data == "my_portfolio":
-        # Obuna tekshirish
-        has_access = (
-            await check_channel_access(user.id, "signals") or
-            await check_channel_access(user.id, "onchain") or
-            await check_screener_access(user.id) or
-            await check_channel_access(user.id, "crypto_edu") or
-            await check_premium_access(user.id)
-        )
-
-        if not has_access:
-            await q.edit_message_text(
-                "💼 <b>Mening Portfelim</b>\n\n"
-                "⛔ Bu funksiya faqat obunachilarga mavjud!\n\n"
-                "Quyidagi bo'limlardan birini oling:\n"
-                "• 📊 Signals\n"
-                "• 🔗 Onchain + Screener\n"
-                "• 📚 Crypto Darslar\n"
-                "• 💎 Premium paket\n\n"
-                "Obuna olib, portfelingizdagi aktivlar\n"
-                "bo'yicha yangiliklar chiqsa darhol\n"
-                "xabar oling! 🔔",
-                parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("💎 Obuna olish", callback_data="sec_premium")],
-                    [InlineKeyboardButton("🏠 Bosh menyu", callback_data="back")],
-                ])
-            )
-            return
-
         items = await get_portfolio(user.id)
         if not items:
             await q.edit_message_text(
@@ -2424,6 +2395,9 @@ def get_portfolio_news(items: list) -> str:
         txt += f"<a href='{news['link']}'>{news['title'][:70]}</a>\n\n"
 
     return txt
+
+
+async def get_bot_username(context):
     """Bot username ni olish"""
     try:
         bot = await context.bot.get_me()
@@ -2731,6 +2705,13 @@ async def check_portfolio_news(context: ContextTypes.DEFAULT_TYPE):
         for u in all_users:
             uid = u.get('user_id')
             if not uid:
+                continue
+
+            # Faqat pullik obuna bor foydalanuvchilarga
+            has_signals   = await check_channel_access(uid, "signals")
+            has_screener  = await check_screener_access(uid)
+            has_premium   = await check_premium_access(uid)
+            if not (has_signals or has_screener or has_premium):
                 continue
 
             items = await get_portfolio(uid)
