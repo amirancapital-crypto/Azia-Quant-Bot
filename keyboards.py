@@ -22,6 +22,7 @@ def main_menu(is_admin=False):
         [InlineKeyboardButton("🆓 Bepul Xizmatlar",            callback_data="sec_free")],
         [InlineKeyboardButton("━━━━━━━━━━━━━━━━━━━━", callback_data="sep")],
         [InlineKeyboardButton("👤 Mening Obunalarim",          callback_data="my_subs")],
+        [InlineKeyboardButton("💼 Mening Portfelim",           callback_data="my_portfolio")],
         [InlineKeyboardButton("👥 Referral",                   callback_data="referral_menu")],
         [InlineKeyboardButton("💬 Admin bilan aloqa",          callback_data="sec_admin")],
     ]
