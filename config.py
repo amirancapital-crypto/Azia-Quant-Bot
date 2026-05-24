@@ -228,4 +228,11 @@ foydalanganingizda:
 
 ━━━━━━━━━━━━━━━━━━━━
 
+📢 <b>Asosiy kanalimiz:</b> @azia_invest
+📣 <b>Bot yangiliklari:</b> @aziaquantbot
+Bot haqida ma'lumot va yangiliklarni
+shu kanallardan kuzatib boring!
+
+━━━━━━━━━━━━━━━━━━━━
+
 👇 Bo'limlardan birini tanlang:"""
