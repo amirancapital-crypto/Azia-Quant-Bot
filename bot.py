@@ -811,7 +811,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Masalan: <code>BTC</code>, <code>AAPL</code>, <code>ETH</code>",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("➕ Aktiv qo'shish", callback_data="portfolio_add_new")],
+                    [InlineKeyboardButton("➕ Aktiv qo'shish", callback_data="portfolio_watch_new")],
                     [InlineKeyboardButton("⬅️ Ortga", callback_data="back"), 
                      InlineKeyboardButton("🏠 Bosh menyu", callback_data="back")],
                 ])
