@@ -855,6 +855,17 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=section_back_menu('my_portfolio')
         )
 
+    elif data == "portfolio_watch_done":
+        await q.edit_message_text(
+            "🎉 <b>Rahmat!</b>\n\n"
+            "Aktivingiz qo'shildi. Portfelingizdagi aktivlar doim kuzatib boriladi.\n\n"
+            "🔔 Agar biron bir yangilik chiqsa darhol sizga xabar beramiz!",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🏠 Bosh menyuga qaytish", callback_data="back")],
+            ])
+        )
+
     elif data == "portfolio_news":
         await q.edit_message_text("⏳ Portfelingizdagi aktivlar bo'yicha yangiliklar olinmoqda...", parse_mode="HTML")
         items = await get_portfolio(user.id)
@@ -1701,13 +1712,14 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await add_portfolio(user.id, ticker, t_type, 0, 0)
 
         await update.message.reply_text(
-            f"✅ <b>{ticker}</b> portfelingizga qo'shildi!\n\n"
-            f"🔔 Endi {ticker} haqida yangilik chiqsa darhol xabar beraman!\n\n"
-            f"💼 Boshqa aktiv qo'shish uchun yana yozing.",
+            f"✅ <b>{ticker}</b> qabul qilindi!\n\n"
+            f"Yana aktiv qo'shmoqchimisiz?",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("💼 Portfelni ko'rish", callback_data="my_portfolio")],
-                [InlineKeyboardButton("🏠 Bosh menyu",        callback_data="back")],
+                [
+                    InlineKeyboardButton("✅ Ha", callback_data="portfolio_watch_new"),
+                    InlineKeyboardButton("❌ Yo'q", callback_data="portfolio_watch_done"),
+                ],
             ])
         )
         return
