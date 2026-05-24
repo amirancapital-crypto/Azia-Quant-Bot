@@ -800,6 +800,22 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── MENING PORTFELIM ──
     elif data == "my_portfolio":
+        # Pullik obuna tekshiruvi
+        has_signals  = await check_channel_access(user.id, "signals")
+        has_screener = await check_screener_access(user.id)
+        has_premium  = await check_premium_access(user.id)
+        if not (has_signals or has_screener or has_premium):
+            await q.edit_message_text(
+                "🔒 <b>Bu funksiya faqat pullik obuna uchun!</b>\n\n"
+                "Portfel va yangiliklar xizmati uchun "
+                "istalgan obunani sotib oling.",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("💎 Obuna olish", callback_data="sec_premium")],
+                    [InlineKeyboardButton("🏠 Bosh menyu", callback_data="back")],
+                ])
+            )
+            return
         items = await get_portfolio(user.id)
         if not items:
             await q.edit_message_text(
