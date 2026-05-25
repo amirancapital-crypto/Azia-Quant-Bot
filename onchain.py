@@ -128,15 +128,22 @@ def get_sol_onchain():
     try:
         result = {}
 
-        # SOL ma'lumotlar (Blockchair)
-        resp = requests.get(
-            f"{BLOCKCHAIR_BASE}/solana/stats",
-            timeout=10
-        )
-        if resp.status_code == 200:
-            data = resp.json().get('data', {})
-            result['transactions'] = data.get('transactions_24h', 0)
-            result['tps']          = data.get('tps', 0)
+        # SOL TPS — Solana rasmiy RPC dan
+        try:
+            rpc_resp = requests.post(
+                "https://api.mainnet-beta.solana.com",
+                json={"jsonrpc": "2.0", "id": 1, "method": "getRecentPerformanceSamples", "params": [1]},
+                timeout=10
+            )
+            if rpc_resp.status_code == 200:
+                samples = rpc_resp.json().get('result', [])
+                if samples:
+                    sample = samples[0]
+                    num_tx = sample.get('numTransactions', 0)
+                    period = sample.get('samplePeriodSecs', 60)
+                    result['tps'] = round(num_tx / period) if period > 0 else 0
+        except:
+            result['tps'] = 0
 
         # SOL narx
         price_resp = requests.get(
@@ -198,8 +205,19 @@ def get_defi_stats():
         resp = requests.get(f"{DEFILLAMA_BASE}/v2/globalCharts", timeout=10)
         if resp.status_code == 200:
             data = resp.json()
-            if data:
-                result['total_tvl'] = data[-1][1] if data else 0
+            if data and isinstance(data, list) and len(data) > 0:
+                last = data[-1]
+                if isinstance(last, list) and len(last) > 1:
+                    result['total_tvl'] = last[1]
+                elif isinstance(last, dict):
+                    result['total_tvl'] = last.get('totalLiquidityUSD', 0)
+
+        # Agar hali ham yo'q bo'lsa — alohida endpoint
+        if not result.get('total_tvl'):
+            tvl_resp = requests.get(f"{DEFILLAMA_BASE}/v2/chains", timeout=10)
+            if tvl_resp.status_code == 200:
+                chains = tvl_resp.json()
+                result['total_tvl'] = sum(c.get('tvl', 0) for c in chains)
 
         # Top protokollar
         proto_resp = requests.get(f"{DEFILLAMA_BASE}/protocols", timeout=10)
@@ -281,11 +299,43 @@ def format_onchain_report():
             for p in top_proto[:3]:
                 report += f"  — {p['name']}: {_fmt_big(p['tvl'])}\n"
 
+        # 🐋 WHALE TRACKER
+        report += "\n🐋 <b>WHALE TRACKER:</b>\n• Tez kunda qo'shiladi ⏳\n\n"
+
+        # 📊 FUNDING RATE (Binance)
+        try:
+            import requests as req
+            from config import BINANCE_API_KEY
+            symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"]
+            funding_txt = ""
+            for symbol in symbols:
+                resp = req.get(
+                    "https://fapi.binance.com/fapi/v1/premiumIndex",
+                    params={"symbol": symbol},
+                    timeout=5
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    rate = float(data.get('lastFundingRate', 0)) * 100
+                    name = symbol.replace("USDT", "")
+                    if rate > 0.05:
+                        signal = "🔴 Yuqori (Short signal)"
+                    elif rate < -0.05:
+                        signal = "🟢 Manfiy (Long signal)"
+                    else:
+                        signal = "⚪ Normal"
+                    funding_txt += f"  • {name}: {rate:.4f}% — {signal}\n"
+            if funding_txt:
+                report += f"📊 <b>FUNDING RATE:</b>\n{funding_txt}\n"
+            else:
+                report += "📊 <b>FUNDING RATE:</b>\n• Ma'lumot olinmadi\n\n"
+        except:
+            report += "📊 <b>FUNDING RATE:</b>\n• Tez kunda qo'shiladi ⏳\n\n"
+
+        # 💥 LIKVIDATSIYALAR
+        report += "💥 <b>LIKVIDATSIYALAR:</b>\n• Tez kunda qo'shiladi ⏳\n\n"
+
         report += (
-            f"\n🐋 <b>WHALE TRACKER:</b>\n"
-            f"• Tez kunda qo'shiladi ⏳\n\n"
-            f"📊 <b>FUNDING RATE:</b>\n"
-            f"• Tez kunda qo'shiladi ⏳\n\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"⚠️ Bu ma'lumot faqat tahlil uchun."
         )
@@ -380,4 +430,4 @@ def format_market_status():
 
     except Exception as e:
         print(f"[ERROR] Market status: {e}")
-        return "❌ Ma'lumot olishda xatolik."
+        return "❌ Ma'lumot olishda xatolik."x
