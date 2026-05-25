@@ -1,12 +1,30 @@
 #!/usr/bin/env python3
 """
 Azia Quant Bot — Stock Screener Module
-Yahoo Finance orqali aksiya tahlili
+Yahoo Finance + Finnhub orqali aksiya tahlili
 """
 
+import os
 import yfinance as yf
 import requests
 import feedparser
+
+FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
+FINNHUB_BASE = "https://finnhub.io/api/v1"
+
+
+def _get_finnhub(endpoint, params={}):
+    """Finnhub API dan ma'lumot olish"""
+    try:
+        if not FINNHUB_API_KEY:
+            return None
+        params['token'] = FINNHUB_API_KEY
+        resp = requests.get(f"{FINNHUB_BASE}/{endpoint}", params=params, timeout=8)
+        if resp.status_code == 200:
+            return resp.json()
+        return None
+    except:
+        return None
 
 
 def _fmt_big(n):
@@ -99,6 +117,12 @@ def get_stock_data(ticker: str, is_free: bool = False) -> str:
         sector   = info.get('sector') or "N/A"
         exchange = info.get('exchange') or ""
 
+        # Finnhub dan real-time narx
+        fh_quote = _get_finnhub("quote", {"symbol": ticker.upper()})
+        if fh_quote and fh_quote.get('c'):
+            price  = fh_quote['c']
+            change = fh_quote.get('dp', change)
+
         change_icon = "📈" if change >= 0 else "📉"
         change_sign = "+" if change >= 0 else ""
 
@@ -175,18 +199,29 @@ def get_stock_data(ticker: str, is_free: bool = False) -> str:
         else:
             inst_txt = "• Ma'lumot yuklanmoqda\n"
 
-        # Insider tranzaksiyalar
+        # Insider tranzaksiyalar (Finnhub)
         try:
-            idf = stock.insider_transactions
             insider_txt = ""
-            if idf is not None and not idf.empty:
-                for _, row in idf.head(3).iterrows():
-                    iname   = (str(row.get('Name') or row.get('Insider') or "Noma'lum"))[:30]
-                    ishares = float(row.get('Shares') or 0)
-                    ival    = float(row.get('Value') or 0)
-                    idate   = str(row.get('Start Date') or row.get('startDate') or '')[:10]
-                    icon    = "SOTDI ⚠️" if ishares < 0 else "OLDI ✅"
-                    insider_txt += f"• {iname}: {abs(ishares):,.0f} {icon}\n  {_fmt_big(abs(ival))} | {idate}\n"
+            fh_insider = _get_finnhub("stock/insider-transactions", {"symbol": ticker.upper()})
+            if fh_insider and fh_insider.get('data'):
+                for item in fh_insider['data'][:3]:
+                    iname  = (item.get('name') or "Noma'lum")[:30]
+                    ishares = float(item.get('share') or 0)
+                    idate  = str(item.get('transactionDate') or '')[:10]
+                    itype  = item.get('transactionCode') or ''
+                    icon   = "SOTDI ⚠️" if itype in ['S', 'D'] else "OLDI ✅"
+                    insider_txt += f"• {iname}: {abs(ishares):,.0f} {icon} | {idate}\n"
+            if not insider_txt:
+                # yfinance dan fallback
+                idf = stock.insider_transactions
+                if idf is not None and not idf.empty:
+                    for _, row in idf.head(3).iterrows():
+                        iname   = (str(row.get('Name') or row.get('Insider') or "Noma'lum"))[:30]
+                        ishares = float(row.get('Shares') or 0)
+                        ival    = float(row.get('Value') or 0)
+                        idate   = str(row.get('Start Date') or row.get('startDate') or '')[:10]
+                        icon    = "SOTDI ⚠️" if ishares < 0 else "OLDI ✅"
+                        insider_txt += f"• {iname}: {abs(ishares):,.0f} {icon}\n  {_fmt_big(abs(ival))} | {idate}\n"
             if not insider_txt:
                 insider_txt = "• Ma'lumot topilmadi\n"
         except:
