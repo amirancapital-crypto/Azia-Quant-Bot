@@ -9,14 +9,17 @@ from config import SIGNAL_PRICES, SCREENER_PRICES, CRYPTO_EDU_PRICE, STOCK_EDU_P
 
 
 def main_reply_menu(is_admin=False):
-    """Pastki asosiy menyu (Reply Keyboard) — shaxsiy bo'limlar"""
-    buttons = [
-        [KeyboardButton("👤 Mening Obunalarim"), KeyboardButton("💼 Mening Portfelim")],
-        [KeyboardButton("🎟 Promokodlar"),        KeyboardButton("👥 Referral")],
-        [KeyboardButton("💬 Admin bilan aloqa")],
-    ]
+    """Pastki asosiy menyu (Reply Keyboard)"""
     if is_admin:
-        buttons.append([KeyboardButton("👨‍💼 Admin Panel")])
+        buttons = [
+            [KeyboardButton("👨‍💼 Admin Panel")],
+        ]
+    else:
+        buttons = [
+            [KeyboardButton("👤 Mening Obunalarim"), KeyboardButton("💼 Mening Portfelim")],
+            [KeyboardButton("🎟 Promokodlar"),        KeyboardButton("👥 Referral")],
+            [KeyboardButton("💬 Admin bilan aloqa")],
+        ]
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True, is_persistent=True)
 
 
