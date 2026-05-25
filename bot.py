@@ -127,26 +127,59 @@ async def send_payment_info(query, section_name, price, dur_label, sub_id, sub_t
 
 async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, section: str):
     """Reply Keyboard tugmasi bosilganda bo'limni ko'rsatish"""
-    from config import (
-        SIGNALS_TEXT, ONCHAIN_TEXT, CRYPTO_EDU_TEXT, STOCK_EDU_TEXT,
-        QUANT_TEXT, AI_TEXT, PREMIUM_TEXT, FREE_TEXT,
-        SUBS_TEXT, ADMIN_TEXT
-    )
     user  = update.effective_user
     admin = await is_admin(user)
 
-    section_map = {
-        "sec_signals":    (SIGNALS_TEXT,    signals_duration_menu()),
-        "sec_onchain":    (ONCHAIN_TEXT,    screener_duration_menu()),
-        "sec_crypto_edu": (CRYPTO_EDU_TEXT, confirm_menu("crypto_edu")),
-        "sec_stock_edu":  (STOCK_EDU_TEXT,  confirm_menu("stock_edu")),
-        "sec_quant":      (QUANT_TEXT,      confirm_menu("quant")),
-        "sec_premium":    (PREMIUM_TEXT,    confirm_menu("premium")),
-        "sec_free":       (FREE_TEXT,       free_menu()),
-        "sec_admin":      (ADMIN_TEXT,      home_menu()),
-    }
+    if section == "sec_signals":
+        txt = (
+            "📊 <b>Crypto va Aksiya Signallar</b>\n\n"
+            "Professional savdo signallari.\n\n"
+            f"💰 <b>Narxlar:</b>\n"
+            f"• 6 oylik — ${SIGNAL_PRICES[6]}\n"
+            f"• 1 yillik — ${SIGNAL_PRICES[12]}\n"
+            f"• ♾ Doimiy — ${SIGNAL_PRICES[0]}\n"
+        )
+        await update.message.reply_text(txt, parse_mode="HTML", reply_markup=signals_duration_menu())
 
-    if section == "sec_ai":
+    elif section == "sec_onchain":
+        txt = (
+            "🔗 <b>Onchain + Screener</b>\n\n"
+            "Professional screener va onchain tahlil.\n\n"
+            f"💰 <b>Narxlar:</b>\n"
+            f"• 6 oylik — ${SCREENER_PRICES[6]}\n"
+            f"• 1 yillik — ${SCREENER_PRICES[12]}\n"
+            f"• ♾ Doimiy — ${SCREENER_PRICES[0]}\n"
+        )
+        await update.message.reply_text(txt, parse_mode="HTML", reply_markup=screener_duration_menu())
+
+    elif section == "sec_crypto_edu":
+        txt = (
+            "📚 <b>Crypto Darslar</b>\n\n"
+            "Crypto bozorini noldan professional\n"
+            "darajagacha o'rganing!\n\n"
+            f"💰 <b>Narx:</b> ${CRYPTO_EDU_PRICE}\n"
+        )
+        await update.message.reply_text(txt, parse_mode="HTML", reply_markup=confirm_menu("crypto_edu"))
+
+    elif section == "sec_stock_edu":
+        txt = (
+            "📈 <b>Fond Bozori Darslar</b>\n\n"
+            "Aksiya bozorini professional\n"
+            "darajada o'rganing!\n\n"
+            f"💰 <b>Narx:</b> ${STOCK_EDU_PRICE}\n"
+        )
+        await update.message.reply_text(txt, parse_mode="HTML", reply_markup=confirm_menu("stock_edu"))
+
+    elif section == "sec_quant":
+        txt = (
+            "🤖 <b>Quant Trading</b>\n\n"
+            "Algoritmik trading va kvant\n"
+            "strategiyalarini o'rganing!\n\n"
+            f"💰 <b>Narx:</b> ${SIGNAL_PRICES[0]}\n"
+        )
+        await update.message.reply_text(txt, parse_mode="HTML", reply_markup=confirm_menu("quant"))
+
+    elif section == "sec_ai":
         context.user_data['ai_mode'] = True
         await update.message.reply_text(
             "🧠 <b>AI Moliyaviy Yordamchi</b>\n\n"
@@ -155,9 +188,32 @@ async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, secti
             parse_mode="HTML",
             reply_markup=home_menu()
         )
-        return
 
-    if section == "my_subs":
+    elif section == "sec_premium":
+        txt = (
+            "💎 <b>Premium To'liq Paket</b>\n\n"
+            "Barcha bo'limlarga to'liq kirish!\n\n"
+            f"💰 <b>Narx:</b> ${PREMIUM_PRICE}\n"
+        )
+        await update.message.reply_text(txt, parse_mode="HTML", reply_markup=confirm_menu("premium"))
+
+    elif section == "sec_free":
+        await update.message.reply_text(
+            "🆓 <b>Bepul Xizmatlar</b>\n\nQuyidagilardan birini tanlang:",
+            parse_mode="HTML",
+            reply_markup=free_menu()
+        )
+
+    elif section == "sec_admin":
+        await update.message.reply_text(
+            f"💬 <b>Admin bilan aloqa</b>\n\n"
+            f"Savolingizni yuboring!\n\n"
+            f"📞 Admin: @{ADMIN_USERNAME}",
+            parse_mode="HTML",
+            reply_markup=home_menu()
+        )
+
+    elif section == "my_subs":
         subs = await get_user_subscriptions(user.id)
         if not subs:
             await update.message.reply_text(
@@ -170,9 +226,8 @@ async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, secti
             for s in subs:
                 txt += f"✅ {s}\n"
             await update.message.reply_text(txt, parse_mode="HTML", reply_markup=home_menu())
-        return
 
-    if section == "my_portfolio":
+    elif section == "my_portfolio":
         has_signals  = await check_channel_access(user.id, "signals")
         has_screener = await check_screener_access(user.id)
         has_premium  = await check_premium_access(user.id)
@@ -181,7 +236,9 @@ async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, secti
                 "🔒 <b>Bu funksiya faqat pullik obuna uchun!</b>\n\n"
                 "Istalgan obunani sotib oling.",
                 parse_mode="HTML",
-                reply_markup=home_menu()
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("💎 Obuna olish", callback_data="sec_premium")],
+                ])
             )
             return
         items = await get_portfolio(user.id)
@@ -190,17 +247,15 @@ async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, secti
             parse_mode="HTML",
             reply_markup=portfolio_menu(items)
         )
-        return
 
-    if section == "referral_menu":
+    elif section == "referral_menu":
         await update.message.reply_text(
             "👥 <b>Referral tizimi</b>",
             parse_mode="HTML",
             reply_markup=referral_menu()
         )
-        return
 
-    if section == "open_admin":
+    elif section == "open_admin":
         if not admin:
             await update.message.reply_text("❌ Ruxsat yo'q!")
             return
@@ -209,18 +264,8 @@ async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, secti
             parse_mode="HTML",
             reply_markup=admin_main_menu()
         )
-        return
-
-    if section in section_map:
-        msg_text, markup = section_map[section]
-        await update.message.reply_text(
-            msg_text,
-            parse_mode="HTML",
-            reply_markup=markup
-        )
 
 
-# ===================== START =====================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -253,12 +298,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop(key, None)
 
     admin = await is_admin(user)
-    # Avval Reply Keyboard yuborish
+    # Pastki Reply Keyboard
     await update.message.reply_text(
-        "📌 Asosiy menyu:",
+        "👇 Tez kirish uchun pastdagi tugmalardan foydalaning:",
         reply_markup=main_reply_menu(is_admin=admin)
     )
-    # Keyin Welcome xabar
+    # Inline menyu bilan Welcome xabar
     await update.message.reply_text(
         WELCOME_TEXT,
         parse_mode="HTML",
@@ -299,16 +344,15 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── BOSH MENYU ──
     if data == "back":
-        # ai_mode ni o'chirish
         context.user_data.clear()
         admin = await is_admin(user)
         try:
             await q.edit_message_text(
-                WELCOME_TEXT, parse_mode="HTML", reply_markup=main_menu(is_admin=admin)
+                WELCOME_TEXT, parse_mode="HTML"
             )
         except:
             await q.message.reply_text(
-                WELCOME_TEXT, parse_mode="HTML", reply_markup=main_menu(is_admin=admin)
+                WELCOME_TEXT, parse_mode="HTML"
             )
 
     # ── ADMIN PANEL (bosh menyudan) ──
@@ -1800,19 +1844,11 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── Reply Keyboard tugmalari ──
     reply_sections = {
-        "📊 Signals":                  "sec_signals",
-        "🔗 Onchain + Screener":        "sec_onchain",
-        "📚 Crypto Darslar":            "sec_crypto_edu",
-        "📈 Fond Bozori Darslar":       "sec_stock_edu",
-        "🤖 Quant Trading":             "sec_quant",
-        "🧠 AI Moliyaviy Yordamchi":    "sec_ai",
-        "💎 Premium To'liq Paket":      "sec_premium",
-        "🆓 Bepul Xizmatlar":           "sec_free",
-        "👤 Mening Obunalarim":         "my_subs",
-        "💼 Mening Portfelim":          "my_portfolio",
-        "👥 Referral":                  "referral_menu",
-        "💬 Admin bilan aloqa":         "sec_admin",
-        "👨‍💼 Admin Panel":               "open_admin",
+        "👤 Mening Obunalarim":  "my_subs",
+        "💼 Mening Portfelim":   "my_portfolio",
+        "👥 Referral":           "referral_menu",
+        "💬 Admin bilan aloqa":  "sec_admin",
+        "👨‍💼 Admin Panel":        "open_admin",
     }
     if text in reply_sections:
         udata['_pending_section'] = reply_sections[text]
@@ -2315,11 +2351,9 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ── Hech qanday holat yo'q — bosh menyu ko'rsat ──
     # (screener yoki AI mode bo'lmasa)
     if not udata.get('screener_mode') and not udata.get('ai_mode'):
-        admin = await is_admin(user)
         await update.message.reply_text(
             WELCOME_TEXT,
-            parse_mode="HTML",
-            reply_markup=main_menu(is_admin=admin)
+            parse_mode="HTML"
         )
 
 
