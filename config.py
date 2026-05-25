@@ -17,7 +17,11 @@ def load_env():
                     continue
                 if "=" in line:
                     key, val = line.split("=", 1)
-                    os.environ[key.strip()] = val.strip()
+                    key = key.strip()
+                    val = val.strip()
+                    # Railway Variables ni qayta yozmaslik
+                    if key not in os.environ:
+                        os.environ[key] = val
 
 load_env()
 
