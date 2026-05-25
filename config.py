@@ -236,3 +236,14 @@ shu kanallardan kuzatib boring!
 ━━━━━━━━━━━━━━━━━━━━
 
 👇 Bo'limlardan birini tanlang:"""
+
+# ===================== FAOL PROMOKODLAR =====================
+ACTIVE_PROMO_CODES = [
+    {
+        "code": "HAYITLIK50",
+        "discount": 50,
+        "description": "Qurbon Hayiti munosabati bilan maxsus chegirma!",
+        "emoji": "🎉",
+        "valid_until": "2026-05-26 soat 23:59 gacha",
+    }
+]
