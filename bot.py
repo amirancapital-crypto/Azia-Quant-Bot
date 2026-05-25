@@ -214,8 +214,12 @@ async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, secti
         )
 
     elif section == "my_subs":
-        subs = await get_user_subscriptions(user.id)
-        if not subs:
+        has_signals  = await check_channel_access(user.id, "signals")
+        has_onchain  = await check_channel_access(user.id, "onchain")
+        has_screener = await check_screener_access(user.id)
+        has_premium  = await check_premium_access(user.id)
+
+        if not any([has_signals, has_onchain, has_screener, has_premium]):
             await update.message.reply_text(
                 "📋 <b>Mening Obunalarim</b>\n\nSizda hozircha faol obuna yo'q.",
                 parse_mode="HTML",
@@ -223,8 +227,10 @@ async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, secti
             )
         else:
             txt = "📋 <b>Mening Obunalarim</b>\n\n"
-            for s in subs:
-                txt += f"✅ {s}\n"
+            if has_signals:  txt += "✅ Signals\n"
+            if has_onchain:  txt += "✅ Onchain\n"
+            if has_screener: txt += "✅ Screener\n"
+            if has_premium:  txt += "✅ Premium\n"
             await update.message.reply_text(txt, parse_mode="HTML", reply_markup=home_menu())
 
     elif section == "my_portfolio":
@@ -348,11 +354,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         admin = await is_admin(user)
         try:
             await q.edit_message_text(
-                WELCOME_TEXT, parse_mode="HTML"
+                WELCOME_TEXT, parse_mode="HTML",
+                reply_markup=main_menu(is_admin=admin)
             )
         except:
             await q.message.reply_text(
-                WELCOME_TEXT, parse_mode="HTML"
+                WELCOME_TEXT, parse_mode="HTML",
+                reply_markup=main_menu(is_admin=admin)
             )
 
     # ── ADMIN PANEL (bosh menyudan) ──
