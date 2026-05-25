@@ -10,7 +10,7 @@ import random
 import string
 from datetime import datetime
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, filters, ContextTypes, PicklePersistence
@@ -59,7 +59,7 @@ from keyboards import (
     screener_action_menu, free_screener_result_menu,
     alert_type_menu, alert_condition_menu, my_alerts_menu,
     portfolio_menu, referral_menu,
-    admin_main_menu,
+    admin_main_menu, main_reply_menu,
 )
 from screener_stock import get_stock_data
 from screener_crypto import get_crypto_data, get_coin_id
@@ -123,6 +123,103 @@ async def send_payment_info(query, section_name, price, dur_label, sub_id, sub_t
     await query.edit_message_text(txt, parse_mode="HTML", reply_markup=markup)
 
 
+# ===================== SHOW SECTION (Reply Keyboard uchun) =====================
+
+async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, section: str):
+    """Reply Keyboard tugmasi bosilganda bo'limni ko'rsatish"""
+    from config import (
+        SIGNALS_TEXT, ONCHAIN_TEXT, CRYPTO_EDU_TEXT, STOCK_EDU_TEXT,
+        QUANT_TEXT, AI_TEXT, PREMIUM_TEXT, FREE_TEXT,
+        SUBS_TEXT, ADMIN_TEXT
+    )
+    user  = update.effective_user
+    admin = await is_admin(user)
+
+    section_map = {
+        "sec_signals":    (SIGNALS_TEXT,    signals_duration_menu()),
+        "sec_onchain":    (ONCHAIN_TEXT,    screener_duration_menu()),
+        "sec_crypto_edu": (CRYPTO_EDU_TEXT, confirm_menu("crypto_edu")),
+        "sec_stock_edu":  (STOCK_EDU_TEXT,  confirm_menu("stock_edu")),
+        "sec_quant":      (QUANT_TEXT,      confirm_menu("quant")),
+        "sec_premium":    (PREMIUM_TEXT,    confirm_menu("premium")),
+        "sec_free":       (FREE_TEXT,       free_menu()),
+        "sec_admin":      (ADMIN_TEXT,      home_menu()),
+    }
+
+    if section == "sec_ai":
+        context.user_data['ai_mode'] = True
+        await update.message.reply_text(
+            "🧠 <b>AI Moliyaviy Yordamchi</b>\n\n"
+            "Savolingizni yozing — javob beraman!\n\n"
+            "Chiqish uchun /start bosing.",
+            parse_mode="HTML",
+            reply_markup=home_menu()
+        )
+        return
+
+    if section == "my_subs":
+        subs = await get_user_subscriptions(user.id)
+        if not subs:
+            await update.message.reply_text(
+                "📋 <b>Mening Obunalarim</b>\n\nSizda hozircha faol obuna yo'q.",
+                parse_mode="HTML",
+                reply_markup=home_menu()
+            )
+        else:
+            txt = "📋 <b>Mening Obunalarim</b>\n\n"
+            for s in subs:
+                txt += f"✅ {s}\n"
+            await update.message.reply_text(txt, parse_mode="HTML", reply_markup=home_menu())
+        return
+
+    if section == "my_portfolio":
+        has_signals  = await check_channel_access(user.id, "signals")
+        has_screener = await check_screener_access(user.id)
+        has_premium  = await check_premium_access(user.id)
+        if not (has_signals or has_screener or has_premium):
+            await update.message.reply_text(
+                "🔒 <b>Bu funksiya faqat pullik obuna uchun!</b>\n\n"
+                "Istalgan obunani sotib oling.",
+                parse_mode="HTML",
+                reply_markup=home_menu()
+            )
+            return
+        items = await get_portfolio(user.id)
+        await update.message.reply_text(
+            "💼 <b>Mening Portfelim</b>",
+            parse_mode="HTML",
+            reply_markup=portfolio_menu(items)
+        )
+        return
+
+    if section == "referral_menu":
+        await update.message.reply_text(
+            "👥 <b>Referral tizimi</b>",
+            parse_mode="HTML",
+            reply_markup=referral_menu()
+        )
+        return
+
+    if section == "open_admin":
+        if not admin:
+            await update.message.reply_text("❌ Ruxsat yo'q!")
+            return
+        await update.message.reply_text(
+            "👨‍💼 <b>Admin Panel</b>",
+            parse_mode="HTML",
+            reply_markup=admin_main_menu()
+        )
+        return
+
+    if section in section_map:
+        msg_text, markup = section_map[section]
+        await update.message.reply_text(
+            msg_text,
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+
+
 # ===================== START =====================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -156,6 +253,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop(key, None)
 
     admin = await is_admin(user)
+    # Avval Reply Keyboard yuborish
+    await update.message.reply_text(
+        "📌 Asosiy menyu:",
+        reply_markup=main_reply_menu(is_admin=admin)
+    )
+    # Keyin Welcome xabar
     await update.message.reply_text(
         WELCOME_TEXT,
         parse_mode="HTML",
@@ -1694,6 +1797,28 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user    = update.effective_user
     text    = (update.message.text or update.message.caption or "").strip()
     udata   = context.user_data
+
+    # ── Reply Keyboard tugmalari ──
+    reply_sections = {
+        "📊 Signals":                  "sec_signals",
+        "🔗 Onchain + Screener":        "sec_onchain",
+        "📚 Crypto Darslar":            "sec_crypto_edu",
+        "📈 Fond Bozori Darslar":       "sec_stock_edu",
+        "🤖 Quant Trading":             "sec_quant",
+        "🧠 AI Moliyaviy Yordamchi":    "sec_ai",
+        "💎 Premium To'liq Paket":      "sec_premium",
+        "🆓 Bepul Xizmatlar":           "sec_free",
+        "👤 Mening Obunalarim":         "my_subs",
+        "💼 Mening Portfelim":          "my_portfolio",
+        "👥 Referral":                  "referral_menu",
+        "💬 Admin bilan aloqa":         "sec_admin",
+        "👨‍💼 Admin Panel":               "open_admin",
+    }
+    if text in reply_sections:
+        udata['_pending_section'] = reply_sections[text]
+        context.user_data.update(udata)
+        await show_section(update, context, reply_sections[text])
+        return
 
     # ── AI Yordamchi ──
     if udata.get('ai_mode'):
