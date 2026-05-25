@@ -271,6 +271,35 @@ async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, secti
             reply_markup=admin_main_menu()
         )
 
+    elif section == "promo_list":
+        from config import ACTIVE_PROMO_CODES
+        if not ACTIVE_PROMO_CODES:
+            await update.message.reply_text(
+                "🎟 <b>Promokodlar</b>\n\n"
+                "😔 Afsuski, amaldagi promokodlar mavjud emas.\n\n"
+                "Yangi promokodlar uchun kanalimizni kuzatib boring!\n"
+                "📢 @AziaQuantBot",
+                parse_mode="HTML",
+                reply_markup=home_menu()
+            )
+        else:
+            txt = "🎟 <b>Faol Promokodlar</b>\n\n"
+            for promo in ACTIVE_PROMO_CODES:
+                txt += (
+                    f"{promo['emoji']} <b>{promo['description']}</b>\n\n"
+                    f"🏷 Kod: <code>{promo['code']}</code>\n"
+                    f"💰 Chegirma: <b>{promo['discount']}%</b>\n"
+                    f"📅 Amal qilish muddati: {promo['valid_until']}\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"📌 Obuna olishda ushbu kodni kiriting\n"
+                    f"va <b>{promo['discount']}%</b> chegirmaga ega bo'ling!\n"
+                )
+            await update.message.reply_text(
+                txt,
+                parse_mode="HTML",
+                reply_markup=home_menu()
+            )
+
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -519,7 +548,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         report = await asyncio.to_thread(format_onchain_report)
         await q.edit_message_text(
             report, parse_mode="HTML",
-            reply_markup=home_menu(),
+            reply_markup=section_back_menu('sec_onchain'),
             disable_web_page_preview=True
         )
 
@@ -715,7 +744,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "free_market":
         await q.edit_message_text("⏳ Ma'lumot olinmoqda...", parse_mode="HTML")
         report = await asyncio.to_thread(format_market_status)
-        await q.edit_message_text(report, parse_mode="HTML", reply_markup=home_menu(), disable_web_page_preview=True)
+        await q.edit_message_text(report, parse_mode="HTML", reply_markup=section_back_menu('sec_free'), disable_web_page_preview=True)
 
     elif data == "free_screener":
         context.user_data['screener_mode'] = 'free'
@@ -855,7 +884,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(
             lesson,
             parse_mode="HTML",
-            reply_markup=home_menu()
+            reply_markup=section_back_menu('sec_free')
         )
 
     elif data == "free_calendar":
@@ -1477,13 +1506,20 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=section_back_menu('admin_stats')
         )
 
-    elif data == "admin_users":
+    elif data == "admin_users" or data.startswith("admin_users_page_"):
         if not await is_admin(user):
             await q.answer("❌ Ruxsat yo'q!", show_alert=True)
             return
+        page = int(data.split("_")[-1]) if data.startswith("admin_users_page_") else 0
+        per_page = 20
         users = await get_all_users()
-        txt = f"👥 <b>Obunachlar ({len(users)} ta)</b>\n\n"
-        for u in users[:20]:
+        total = len(users)
+        start = page * per_page
+        end = start + per_page
+        page_users = users[start:end]
+
+        txt = f"👥 <b>Foydalanuvchilar ({total} ta)</b> | Sahifa {page+1}/{(total-1)//per_page+1}\n\n"
+        for u in page_users:
             uname = f"@{u.get('username', '')}" if u.get('username') else "—"
             created = u.get('created_at', '')[:16] if u.get('created_at') else "—"
             has_sub = "✅" if await check_channel_access(u.get('user_id'), "signals") or \
@@ -1491,10 +1527,17 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                               await check_premium_access(u.get('user_id')) else "🆓"
             txt += f"{has_sub} {u.get('full_name', '')} {uname}\n"
             txt += f"   🆔 {u.get('user_id', '—')} | 📅 {created}\n"
-        if len(users) > 20:
-            txt += f"\n... va yana {len(users) - 20} ta"
-        txt += f"\n\n✅ Obunachi | 🆓 Obuna bo'lmagan"
-        await q.edit_message_text(txt, parse_mode="HTML", reply_markup=admin_main_menu())
+        txt += f"\n✅ Obunachi | 🆓 Obuna bo'lmagan"
+
+        # Sahifalash tugmalari
+        nav_buttons = []
+        if page > 0:
+            nav_buttons.append(InlineKeyboardButton("⬅️ Oldingi", callback_data=f"admin_users_page_{page-1}"))
+        if end < total:
+            nav_buttons.append(InlineKeyboardButton("Keyingi ➡️", callback_data=f"admin_users_page_{page+1}"))
+
+        markup = InlineKeyboardMarkup([nav_buttons] if nav_buttons else [] + [[InlineKeyboardButton("⬅️ Ortga", callback_data="open_admin")]])
+        await q.edit_message_text(txt, parse_mode="HTML", reply_markup=markup)
 
     elif data == "admin_cancel_sub":
         if not await is_admin(user):
@@ -1860,6 +1903,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_sections = {
         "👤 Mening Obunalarim":  "my_subs",
         "💼 Mening Portfelim":   "my_portfolio",
+        "🎟 Promokodlar":        "promo_list",
         "👥 Referral":           "referral_menu",
         "💬 Admin bilan aloqa":  "sec_admin",
         "👨‍💼 Admin Panel":        "open_admin",
