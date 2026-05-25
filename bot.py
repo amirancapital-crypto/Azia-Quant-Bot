@@ -1492,31 +1492,43 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_reply_markup(reply_markup=None)
         await q.message.reply_text("❌ Affiliate rad etildi.")
 
-    elif data == "admin_all_users":
+    elif data == "admin_all_users" or data.startswith("admin_all_users_page_"):
         if not await is_admin(user):
             await q.answer("❌ Ruxsat yo'q!", show_alert=True)
             return
+        page = int(data.split("_")[-1]) if data.startswith("admin_all_users_page_") else 0
+        per_page = 10
         all_users = await get_all_bot_users()
         non_subs  = await get_non_subscribers()
         non_sub_ids = {u['user_id'] for u in non_subs}
+        total = len(all_users)
+        start = page * per_page
+        end = start + per_page
+        page_users = all_users[start:end]
 
-        txt = f"👤 <b>Barcha foydalanuvchilar ({len(all_users)} ta)</b>\n\n"
-        for u in all_users[:30]:
-            uid    = u.get('user_id', '')
-            uname  = f"@{u.get('username')}" if u.get('username') else "—"
-            fname  = u.get('full_name', '') or ''
-            status = "🆓" if uid in non_sub_ids else "✅"
-            txt   += f"{status} {fname} {uname}\n"
+        txt = f"👤 <b>Barcha foydalanuvchilar ({total} ta)</b> | Sahifa {page+1}/{(total-1)//per_page+1}\n\n"
+        for u in page_users:
+            uid     = u.get('user_id', '')
+            uname   = f"@{u.get('username')}" if u.get('username') else "—"
+            fname   = u.get('full_name', '') or ''
+            created = u.get('created_at', '')[:16] if u.get('created_at') else "—"
+            status  = "🆓" if uid in non_sub_ids else "✅"
+            txt += f"{status} {fname} {uname}\n"
+            txt += f"   🆔 {uid} | 📅 {created}\n"
 
-        if len(all_users) > 30:
-            txt += f"\n... va yana {len(all_users) - 30} ta"
+        txt += f"\n✅ Obunachi | 🆓 Obuna bo'lmagan"
 
-        txt += f"\n\n✅ Obunachi | 🆓 Obuna bo'lmagan"
-
-        await q.edit_message_text(
-            txt, parse_mode="HTML",
-            reply_markup=section_back_menu('admin_stats')
-        )
+        keyboard = []
+        nav_buttons = []
+        if page > 0:
+            nav_buttons.append(InlineKeyboardButton("⬅️ Oldingi", callback_data=f"admin_all_users_page_{page-1}"))
+        if end < total:
+            nav_buttons.append(InlineKeyboardButton("Keyingi ➡️", callback_data=f"admin_all_users_page_{page+1}"))
+        if nav_buttons:
+            keyboard.append(nav_buttons)
+        keyboard.append([InlineKeyboardButton("⬅️ Ortga", callback_data="open_admin")])
+        markup = InlineKeyboardMarkup(keyboard)
+        await q.edit_message_text(txt, parse_mode="HTML", reply_markup=markup)
 
     elif data == "admin_users" or data.startswith("admin_users_page_"):
         if not await is_admin(user):
