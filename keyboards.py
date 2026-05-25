@@ -12,7 +12,8 @@ def main_reply_menu(is_admin=False):
     """Pastki asosiy menyu (Reply Keyboard) — shaxsiy bo'limlar"""
     buttons = [
         [KeyboardButton("👤 Mening Obunalarim"), KeyboardButton("💼 Mening Portfelim")],
-        [KeyboardButton("👥 Referral"),          KeyboardButton("💬 Admin bilan aloqa")],
+        [KeyboardButton("🎟 Promokodlar"),        KeyboardButton("👥 Referral")],
+        [KeyboardButton("💬 Admin bilan aloqa")],
     ]
     if is_admin:
         buttons.append([KeyboardButton("👨‍💼 Admin Panel")])
