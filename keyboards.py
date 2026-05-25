@@ -4,8 +4,24 @@ Azia Quant Bot — Keyboards Module
 Barcha inline tugmalar
 """
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from config import SIGNAL_PRICES, SCREENER_PRICES, CRYPTO_EDU_PRICE, STOCK_EDU_PRICE, PREMIUM_PRICE
+
+
+def main_reply_menu(is_admin=False):
+    """Pastki asosiy menyu (Reply Keyboard)"""
+    buttons = [
+        [KeyboardButton("📊 Signals"),          KeyboardButton("🔗 Onchain + Screener")],
+        [KeyboardButton("📚 Crypto Darslar"),   KeyboardButton("📈 Fond Bozori Darslar")],
+        [KeyboardButton("🤖 Quant Trading"),    KeyboardButton("🧠 AI Moliyaviy Yordamchi")],
+        [KeyboardButton("💎 Premium To'liq Paket")],
+        [KeyboardButton("🆓 Bepul Xizmatlar")],
+        [KeyboardButton("👤 Mening Obunalarim"), KeyboardButton("💼 Mening Portfelim")],
+        [KeyboardButton("👥 Referral"),          KeyboardButton("💬 Admin bilan aloqa")],
+    ]
+    if is_admin:
+        buttons.append([KeyboardButton("👨‍💼 Admin Panel")])
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True, persistent=True)
 
 
 def main_menu(is_admin=False):
