@@ -322,6 +322,39 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif code.startswith('aff_'):
             affiliate_code = code[4:]
             context.user_data['affiliate_code'] = affiliate_code
+        else:
+            # Ticker bo'lishi mumkin — screener ishlatamiz
+            ticker = code.upper()
+            admin = await is_admin(user)
+            await update.message.reply_text(
+                "👇 Tez kirish uchun pastdagi tugmalardan foydalaning:",
+                reply_markup=main_reply_menu(is_admin=admin)
+            )
+            await update.message.reply_text(
+                f"🔍 <b>{ticker}</b> bo'yicha tahlil olinmoqda...",
+                parse_mode="HTML"
+            )
+            try:
+                from screener_crypto import get_crypto_data, get_coin_id
+                from screener_stock import get_stock_data
+                # Avval crypto tekshiramiz
+                coin_id = get_coin_id(ticker)
+                if coin_id:
+                    result = await asyncio.to_thread(get_crypto_data, ticker)
+                else:
+                    result = await asyncio.to_thread(get_stock_data, ticker)
+                await update.message.reply_text(
+                    result, parse_mode="HTML",
+                    reply_markup=main_menu(is_admin=admin),
+                    disable_web_page_preview=True
+                )
+            except:
+                await update.message.reply_text(
+                    f"❌ <b>{ticker}</b> bo'yicha ma'lumot topilmadi.",
+                    parse_mode="HTML",
+                    reply_markup=main_menu(is_admin=admin)
+                )
+            return
 
     # Faqat kerakli holatlarni tozalash (ai_mode saqlansin)
     keys_to_clear = ['screener_mode', 'waiting_payment', 'sub_id', 'scr_sub_id',
@@ -3026,6 +3059,11 @@ async def check_portfolio_news(context: ContextTypes.DEFAULT_TYPE):
     try:
         import feedparser
 
+        # Yuborilgan yangiliklar (xotira ichida saqlash)
+        if not hasattr(context.bot_data, 'sent_news'):
+            context.bot_data['sent_news'] = set()
+        sent_news = context.bot_data['sent_news']
+
         # Barcha foydalanuvchilarni olish
         all_users = await get_all_bot_users()
         if not all_users:
@@ -3100,6 +3138,11 @@ async def check_portfolio_news(context: ContextTypes.DEFAULT_TYPE):
                 if not is_negative:
                     continue
 
+                # Qayta yuborilmasin
+                news_key = f"{uid}_{news['link']}"
+                if news_key in sent_news:
+                    continue
+
                 # Xabar yuborish
                 try:
                     await context.bot.send_message(
@@ -3117,6 +3160,11 @@ async def check_portfolio_news(context: ContextTypes.DEFAULT_TYPE):
                             InlineKeyboardButton("💼 Portfelni ko'rish", callback_data="my_portfolio")
                         ]])
                     )
+                    # Yuborilganlar ro'yxatiga qo'shish
+                    sent_news.add(news_key)
+                    # Ro'yxat juda kattalashib ketmasin
+                    if len(sent_news) > 1000:
+                        sent_news.clear()
                     await asyncio.sleep(0.1)
                 except:
                     pass
