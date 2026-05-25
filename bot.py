@@ -983,6 +983,18 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(txt, parse_mode="HTML", reply_markup=home_menu())
 
     # ── MENING PORTFELIM ──
+    elif data == "portfolio_back":
+        admin = await is_admin(user)
+        await q.message.reply_text(
+            WELCOME_TEXT,
+            parse_mode="HTML",
+            reply_markup=main_menu(is_admin=admin)
+        )
+        try:
+            await q.delete_message()
+        except:
+            pass
+
     elif data == "my_portfolio":
         # Pullik obuna tekshiruvi
         has_signals  = await check_channel_access(user.id, "signals")
