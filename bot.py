@@ -1485,9 +1485,15 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         txt = f"👥 <b>Obunachlar ({len(users)} ta)</b>\n\n"
         for u in users[:20]:
             uname = f"@{u.get('username', '')}" if u.get('username') else "—"
-            txt += f"• {u.get('full_name', '')} {uname}\n"
+            created = u.get('created_at', '')[:16] if u.get('created_at') else "—"
+            has_sub = "✅" if await check_channel_access(u.get('user_id'), "signals") or \
+                              await check_screener_access(u.get('user_id')) or \
+                              await check_premium_access(u.get('user_id')) else "🆓"
+            txt += f"{has_sub} {u.get('full_name', '')} {uname}\n"
+            txt += f"   🆔 {u.get('user_id', '—')} | 📅 {created}\n"
         if len(users) > 20:
             txt += f"\n... va yana {len(users) - 20} ta"
+        txt += f"\n\n✅ Obunachi | 🆓 Obuna bo'lmagan"
         await q.edit_message_text(txt, parse_mode="HTML", reply_markup=admin_main_menu())
 
     elif data == "admin_cancel_sub":
