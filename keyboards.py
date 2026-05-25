@@ -21,7 +21,7 @@ def main_reply_menu(is_admin=False):
     ]
     if is_admin:
         buttons.append([KeyboardButton("👨‍💼 Admin Panel")])
-    return ReplyKeyboardMarkup(buttons, resize_keyboard=True, persistent=True)
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True, is_persistent=True)
 
 
 def main_menu(is_admin=False):
