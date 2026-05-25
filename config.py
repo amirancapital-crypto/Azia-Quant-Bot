@@ -26,6 +26,8 @@ BOT_TOKEN      = os.environ.get("BOT_TOKEN", "8692951194:AAG-4O63hvg_CahVM9U-7J3
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "Kvantium_Trader").lstrip("@")
 CARD_NUMBER    = os.environ.get("CARD_NUMBER", "9860 1201 3287 1324")
 CARD_OWNER     = os.environ.get("CARD_OWNER", "G A")
+BINANCE_API_KEY    = os.environ.get("BINANCE_API_KEY", "")
+BINANCE_SECRET_KEY = os.environ.get("BINANCE_SECRET_KEY", "")
 
 # Admin IDlar (.env da vergul bilan yoziladi)
 ADMIN_IDS = []
