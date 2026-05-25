@@ -14,8 +14,6 @@ def main_reply_menu(is_admin=False):
         [KeyboardButton("👤 Mening Obunalarim"), KeyboardButton("💼 Mening Portfelim")],
         [KeyboardButton("👥 Referral"),          KeyboardButton("💬 Admin bilan aloqa")],
     ]
-    if is_admin:
-        buttons.append([KeyboardButton("👨‍💼 Admin Panel")])
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True, is_persistent=True)
 
 
@@ -31,8 +29,6 @@ def main_menu(is_admin=False):
         [InlineKeyboardButton("💎 Premium To'liq Paket",       callback_data="sec_premium")],
         [InlineKeyboardButton("🆓 Bepul Xizmatlar",            callback_data="sec_free")],
     ]
-    if is_admin:
-        buttons.append([InlineKeyboardButton("👨‍💼 Admin Panel", callback_data="open_admin")])
     return InlineKeyboardMarkup(buttons)
 
 
