@@ -1237,8 +1237,17 @@ def _save_user_sync(user_id, username, full_name):
             username=EXCLUDED.username, full_name=EXCLUDED.full_name""",
             (user_id, username or "", full_name or ""))
     else:
-        c.execute("""INSERT OR REPLACE INTO users (user_id, username, full_name)
-            VALUES (?, ?, ?)""", (user_id, username or "", full_name or ""))
+        # Avval foydalanuvchi bormi tekshirish
+        c.execute("SELECT created_at FROM users WHERE user_id=?", (user_id,))
+        existing = c.fetchone()
+        if existing:
+            # Bor bo'lsa faqat username va full_name yangilansin, created_at saqlansin
+            c.execute("""UPDATE users SET username=?, full_name=? WHERE user_id=?""",
+                (username or "", full_name or "", user_id))
+        else:
+            # Yangi foydalanuvchi — created_at avtomatik qo'shiladi
+            c.execute("""INSERT INTO users (user_id, username, full_name)
+                VALUES (?, ?, ?)""", (user_id, username or "", full_name or ""))
     conn.commit()
     conn.close()
 
