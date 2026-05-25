@@ -302,29 +302,37 @@ def format_onchain_report():
         # 🐋 WHALE TRACKER
         report += "\n🐋 <b>WHALE TRACKER:</b>\n• Tez kunda qo'shiladi ⏳\n\n"
 
-        # 📊 FUNDING RATE (Binance)
+        # 📊 FUNDING RATE (Bybit public API)
         try:
             import requests as req
-            from config import BINANCE_API_KEY
-            symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"]
+            symbols = [
+                ("BTCUSDT", "BTC"),
+                ("ETHUSDT", "ETH"),
+                ("SOLUSDT", "SOL"),
+                ("BNBUSDT", "BNB"),
+            ]
             funding_txt = ""
-            for symbol in symbols:
-                resp = req.get(
-                    "https://fapi.binance.com/fapi/v1/premiumIndex",
-                    params={"symbol": symbol},
-                    timeout=5
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    rate = float(data.get('lastFundingRate', 0)) * 100
-                    name = symbol.replace("USDT", "")
-                    if rate > 0.05:
-                        signal = "🔴 Yuqori (Short signal)"
-                    elif rate < -0.05:
-                        signal = "🟢 Manfiy (Long signal)"
-                    else:
-                        signal = "⚪ Normal"
-                    funding_txt += f"  • {name}: {rate:.4f}% — {signal}\n"
+            for symbol, name in symbols:
+                try:
+                    resp = req.get(
+                        "https://api.bybit.com/v5/market/tickers",
+                        params={"category": "linear", "symbol": symbol},
+                        timeout=5
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        items = data.get('result', {}).get('list', [])
+                        if items:
+                            rate = float(items[0].get('fundingRate', 0)) * 100
+                            if rate > 0.05:
+                                signal = "🔴 Yuqori (Short signal)"
+                            elif rate < -0.05:
+                                signal = "🟢 Manfiy (Long signal)"
+                            else:
+                                signal = "⚪ Normal"
+                            funding_txt += f"  • {name}: {rate:.4f}% — {signal}\n"
+                except:
+                    continue
             if funding_txt:
                 report += f"📊 <b>FUNDING RATE:</b>\n{funding_txt}\n"
             else:
