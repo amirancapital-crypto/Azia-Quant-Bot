@@ -63,10 +63,32 @@ def _rsi_label(rsi):
 
 
 def get_stock_news(ticker, name):
-    """Google News RSS orqali yangiliklar"""
+    """Finnhub + Google News RSS orqali yangiliklar"""
     try:
         news_txt = ""
-        # yfinance news
+
+        # Finnhub news (eng ishonchli)
+        try:
+            from datetime import datetime, timedelta
+            date_to   = datetime.now().strftime('%Y-%m-%d')
+            date_from = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+            fh_news = _get_finnhub("company-news", {
+                "symbol": ticker.upper(),
+                "from": date_from,
+                "to": date_to
+            })
+            if fh_news:
+                for n in fh_news[:3]:
+                    title = (n.get('headline') or '')[:65]
+                    link  = n.get('url') or ''
+                    src   = n.get('source') or ''
+                    if title and link:
+                        news_txt += f"• <a href='{link}'>{title}</a>\n  📰 {src}\n"
+            if news_txt:
+                return news_txt
+        except: pass
+
+        # yfinance news fallback
         try:
             stock = yf.Ticker(ticker)
             news_list = stock.news or []
@@ -156,7 +178,12 @@ def get_stock_data(ticker: str, is_free: bool = False) -> str:
         fcf       = info.get('freeCashflow') or 0
         dividend  = info.get('dividendRate') or 0
         div_yield = info.get('dividendYield') or 0
+        # div_yield odatda 0.0035 formatida keladi (0.35%)
+        # Agar 1 dan katta bo'lsa — 100 ga bo'lish kerak
         if div_yield and div_yield > 1:
+            div_yield = div_yield / 100
+        # Agar hali ham 0.5 dan katta bo'lsa — noto'g'ri, 100 ga bo'lamiz
+        if div_yield and div_yield > 0.5:
             div_yield = div_yield / 100
 
         # Texnik
