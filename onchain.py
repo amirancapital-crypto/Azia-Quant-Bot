@@ -344,7 +344,7 @@ def format_onchain_report():
 
     except Exception as e:
         print(f"[ERROR] Onchain report: {e}")
-        return "❌ Ma'lumot olishda xatolik. Qayta urinib ko'ring."
+        return "Malumot olishda xatolik. Qayta urinib koring."
 
 
 def check_whale_alert(data: dict) -> bool:
@@ -430,4 +430,4 @@ def format_market_status():
 
     except Exception as e:
         print(f"[ERROR] Market status: {e}")
-        return "❌ Ma'lumot olishda xatolik."x
+        return "Malumot olishda xatolik."
