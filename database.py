@@ -19,8 +19,14 @@ USE_POSTGRES = bool(os.environ.get("DATABASE_URL"))
 def get_conn():
     """Database ulanish"""
     if USE_POSTGRES:
-        import psycopg2
-        import psycopg2.extras
+        try:
+            import psycopg2
+            import psycopg2.extras
+        except ImportError:
+            from psycopg2cffi import compat
+            compat.register()
+            import psycopg2
+            import psycopg2.extras
         conn = psycopg2.connect(os.environ["DATABASE_URL"], sslmode="require")
         conn.autocommit = False
         return conn
