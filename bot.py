@@ -1548,7 +1548,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if end < total:
             nav_buttons.append(InlineKeyboardButton("Keyingi ➡️", callback_data=f"admin_users_page_{page+1}"))
 
-        markup = InlineKeyboardMarkup([nav_buttons] if nav_buttons else [] + [[InlineKeyboardButton("⬅️ Ortga", callback_data="open_admin")]])
+        keyboard = []
+        if nav_buttons:
+            keyboard.append(nav_buttons)
+        keyboard.append([InlineKeyboardButton("⬅️ Ortga", callback_data="open_admin")])
+        markup = InlineKeyboardMarkup(keyboard)
         await q.edit_message_text(txt, parse_mode="HTML", reply_markup=markup)
 
     elif data == "admin_cancel_sub":
