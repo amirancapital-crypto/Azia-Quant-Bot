@@ -14,20 +14,21 @@ from typing import Optional, List, Dict, Any
 logger = logging.getLogger(__name__)
 
 # ===================== DB CONNECTION =====================
-USE_POSTGRES = bool(os.environ.get("DATABASE_URL"))
+try:
+    import psycopg2
+    import psycopg2.extras
+    USE_POSTGRES = bool(os.environ.get("DATABASE_URL"))
+except ImportError:
+    USE_POSTGRES = False
 
 def get_conn():
     """Database ulanish"""
     if USE_POSTGRES:
-        try:
-            import psycopg2
-            import psycopg2.extras
-        except ImportError:
-            from psycopg2cffi import compat
-            compat.register()
-            import psycopg2
-            import psycopg2.extras
-        conn = psycopg2.connect(os.environ["DATABASE_URL"], sslmode="require")
+        conn = psycopg2.connect(
+            os.environ["DATABASE_URL"],
+            sslmode="require",
+            cursor_factory=psycopg2.extras.RealDictCursor
+        )
         conn.autocommit = False
         return conn
     else:
