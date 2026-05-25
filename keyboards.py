@@ -14,6 +14,8 @@ def main_reply_menu(is_admin=False):
         [KeyboardButton("👤 Mening Obunalarim"), KeyboardButton("💼 Mening Portfelim")],
         [KeyboardButton("👥 Referral"),          KeyboardButton("💬 Admin bilan aloqa")],
     ]
+    if is_admin:
+        buttons.append([KeyboardButton("👨‍💼 Admin Panel")])
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True, is_persistent=True)
 
 
