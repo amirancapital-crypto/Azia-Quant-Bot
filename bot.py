@@ -1523,7 +1523,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await q.answer("❌ Ruxsat yo'q!", show_alert=True)
             return
         page = int(data.split("_")[-1]) if data.startswith("admin_users_page_") else 0
-        per_page = 20
+        per_page = 10
         users = await get_all_users()
         total = len(users)
         start = page * per_page
