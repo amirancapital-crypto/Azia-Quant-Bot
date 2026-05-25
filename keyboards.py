@@ -9,13 +9,8 @@ from config import SIGNAL_PRICES, SCREENER_PRICES, CRYPTO_EDU_PRICE, STOCK_EDU_P
 
 
 def main_reply_menu(is_admin=False):
-    """Pastki asosiy menyu (Reply Keyboard)"""
+    """Pastki asosiy menyu (Reply Keyboard) — shaxsiy bo'limlar"""
     buttons = [
-        [KeyboardButton("📊 Signals"),          KeyboardButton("🔗 Onchain + Screener")],
-        [KeyboardButton("📚 Crypto Darslar"),   KeyboardButton("📈 Fond Bozori Darslar")],
-        [KeyboardButton("🤖 Quant Trading"),    KeyboardButton("🧠 AI Moliyaviy Yordamchi")],
-        [KeyboardButton("💎 Premium To'liq Paket")],
-        [KeyboardButton("🆓 Bepul Xizmatlar")],
         [KeyboardButton("👤 Mening Obunalarim"), KeyboardButton("💼 Mening Portfelim")],
         [KeyboardButton("👥 Referral"),          KeyboardButton("💬 Admin bilan aloqa")],
     ]
@@ -25,7 +20,7 @@ def main_reply_menu(is_admin=False):
 
 
 def main_menu(is_admin=False):
-    """Bosh menyu"""
+    """Bosh menyu — asosiy bo'limlar (inline)"""
     buttons = [
         [InlineKeyboardButton("📊 Signals",                    callback_data="sec_signals")],
         [InlineKeyboardButton("🔗 Onchain + Screener",         callback_data="sec_onchain")],
@@ -34,16 +29,10 @@ def main_menu(is_admin=False):
         [InlineKeyboardButton("🤖 Quant Trading",              callback_data="sec_quant")],
         [InlineKeyboardButton("🧠 AI Moliyaviy Yordamchi",     callback_data="sec_ai")],
         [InlineKeyboardButton("💎 Premium To'liq Paket",       callback_data="sec_premium")],
-        [InlineKeyboardButton("━━━━━━━━━━━━━━━━━━━━", callback_data="sep")],
         [InlineKeyboardButton("🆓 Bepul Xizmatlar",            callback_data="sec_free")],
-        [InlineKeyboardButton("━━━━━━━━━━━━━━━━━━━━", callback_data="sep")],
-        [InlineKeyboardButton("👤 Mening Obunalarim",          callback_data="my_subs")],
-        [InlineKeyboardButton("💼 Mening Portfelim",           callback_data="my_portfolio")],
-        [InlineKeyboardButton("👥 Referral",                   callback_data="referral_menu")],
-        [InlineKeyboardButton("💬 Admin bilan aloqa",          callback_data="sec_admin")],
     ]
     if is_admin:
-        buttons.append([InlineKeyboardButton("👨‍💼 Admin Panel",  callback_data="open_admin")])
+        buttons.append([InlineKeyboardButton("👨‍💼 Admin Panel", callback_data="open_admin")])
     return InlineKeyboardMarkup(buttons)
 
 
