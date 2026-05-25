@@ -209,8 +209,8 @@ def portfolio_menu(items):
         buttons.append([InlineKeyboardButton(
             f"🗑 {label}", callback_data=f"portfolio_del_{item['id']}"
         )])
-    buttons.append([InlineKeyboardButton("➕ Qo'shish", callback_data="portfolio_add_new")])
-    buttons.append([InlineKeyboardButton("⬅️ Ortga", callback_data="back")])
+    buttons.append([InlineKeyboardButton("➕ Qo'shish", callback_data="portfolio_watch_new")])
+    buttons.append([InlineKeyboardButton("⬅️ Ortga", callback_data="portfolio_back")])
     return InlineKeyboardMarkup(buttons)
 
 
