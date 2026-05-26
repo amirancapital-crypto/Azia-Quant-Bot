@@ -402,7 +402,7 @@ def _save_subscription_sync(user_id, username, full_name, sub_type, duration) ->
             INSERT INTO subscriptions (user_id, sub_type, duration, price)
             VALUES (%s, %s, %s, %s) RETURNING id
         """, (user_id, sub_type, duration, price))
-        sub_id = c.fetchone()[0]
+        sub_id = c.fetchone()["id"]  # FIX: [0] → ["id"]
     else:
         c.execute("""
             INSERT INTO subscriptions (user_id, sub_type, duration, price)
@@ -487,7 +487,7 @@ def _save_screener_sub_sync(user_id, username, full_name, duration) -> int:
             INSERT INTO screener_subs (user_id, duration, price)
             VALUES (%s, %s, %s) RETURNING id
         """, (user_id, duration, price))
-        sub_id = c.fetchone()[0]
+        sub_id = c.fetchone()["id"]  # FIX: [0] → ["id"]
     else:
         c.execute("INSERT INTO screener_subs (user_id, duration, price) VALUES (?,?,?)",
                  (user_id, duration, price))
@@ -569,7 +569,7 @@ def _save_premium_sub_sync(user_id, username, full_name) -> int:
             INSERT INTO premium_subs (user_id, duration, price)
             VALUES (%s, 0, %s) RETURNING id
         """, (user_id, PREMIUM_PRICE))
-        sub_id = c.fetchone()[0]
+        sub_id = c.fetchone()["id"]  # FIX: [0] → ["id"]
     else:
         c.execute("INSERT INTO premium_subs (user_id, duration, price) VALUES (?,0,?)",
                  (user_id, PREMIUM_PRICE))
@@ -706,7 +706,7 @@ def _save_alert_sync(user_id, ticker, ticker_type, alert_type, condition, value)
             INSERT INTO alerts (user_id, ticker, ticker_type, alert_type, condition, value)
             VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
         """, (user_id, ticker, ticker_type, alert_type, condition, value))
-        alert_id = c.fetchone()[0]
+        alert_id = c.fetchone()["id"]  # FIX: [0] → ["id"]
     else:
         c.execute("""
             INSERT INTO alerts (user_id, ticker, ticker_type, alert_type, condition, value)
@@ -850,15 +850,15 @@ def _get_referral_stats_sync(user_id: int) -> Dict:
     conn = get_conn()
     c = conn.cursor()
     if USE_POSTGRES:
-        c.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id=%s", (user_id,))
+        c.execute("SELECT COUNT(*) AS cnt FROM referrals WHERE referrer_id=%s", (user_id,))
+        count = c.fetchone()["cnt"]
+        c.execute("SELECT COALESCE(SUM(reward_amount),0) AS total FROM referrals WHERE referrer_id=%s", (user_id,))
+        total = c.fetchone()["total"]
     else:
         c.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id=?", (user_id,))
-    count = c.fetchone()[0]
-    if USE_POSTGRES:
-        c.execute("SELECT COALESCE(SUM(reward_amount),0) FROM referrals WHERE referrer_id=%s", (user_id,))
-    else:
+        count = c.fetchone()[0]
         c.execute("SELECT COALESCE(SUM(reward_amount),0) FROM referrals WHERE referrer_id=?", (user_id,))
-    total = c.fetchone()[0]
+        total = c.fetchone()[0]
     conn.close()
     return {"count": count, "total_reward": total}
 
@@ -926,11 +926,18 @@ def _get_stats_sync() -> Dict:
     conn = get_conn()
     c = conn.cursor()
     stats = {}
-    for table in ["users", "subscriptions", "screener_subs", "premium_subs"]:
-        c.execute(f"SELECT COUNT(*) FROM {table}")
-        stats[f"total_{table}"] = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM subscriptions WHERE status='active'")
-    stats["active_subs"] = c.fetchone()[0]
+    if USE_POSTGRES:
+        for table in ["users", "subscriptions", "screener_subs", "premium_subs"]:
+            c.execute(f"SELECT COUNT(*) AS cnt FROM {table}")
+            stats[f"total_{table}"] = c.fetchone()["cnt"]
+        c.execute("SELECT COUNT(*) AS cnt FROM subscriptions WHERE status='active'")
+        stats["active_subs"] = c.fetchone()["cnt"]
+    else:
+        for table in ["users", "subscriptions", "screener_subs", "premium_subs"]:
+            c.execute(f"SELECT COUNT(*) FROM {table}")
+            stats[f"total_{table}"] = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM subscriptions WHERE status='active'")
+        stats["active_subs"] = c.fetchone()[0]
     conn.close()
     return stats
 
@@ -1052,3 +1059,63 @@ def _mark_screener_expired_sync(user_id: int):
 
 async def mark_screener_expired(user_id: int):
     await run_in_executor(_mark_screener_expired_sync, user_id)
+
+# ===================== FIRST PURCHASE CHECK =====================
+def _is_first_purchase_sync(user_id: int) -> bool:
+    """
+    True  = hali hech narsa sotib olmagan (WELCOME30 ishlaydi)
+    False = avval xarid qilgan (WELCOME30 ishlamaydi)
+    """
+    conn = get_conn()
+    c = conn.cursor()
+    if USE_POSTGRES:
+        c.execute("""
+            SELECT 1 FROM subscriptions
+            WHERE user_id = %s AND status IN ('active','expired','cancelled')
+            LIMIT 1
+        """, (user_id,))
+        if c.fetchone():
+            conn.close()
+            return False
+        c.execute("""
+            SELECT 1 FROM screener_subs
+            WHERE user_id = %s AND status IN ('active','expired','cancelled')
+            LIMIT 1
+        """, (user_id,))
+        if c.fetchone():
+            conn.close()
+            return False
+        c.execute("""
+            SELECT 1 FROM premium_subs
+            WHERE user_id = %s AND status IN ('active','expired','cancelled')
+            LIMIT 1
+        """, (user_id,))
+        row = c.fetchone()
+    else:
+        c.execute("""
+            SELECT 1 FROM subscriptions
+            WHERE user_id = ? AND status IN ('active','expired','cancelled')
+            LIMIT 1
+        """, (user_id,))
+        if c.fetchone():
+            conn.close()
+            return False
+        c.execute("""
+            SELECT 1 FROM screener_subs
+            WHERE user_id = ? AND status IN ('active','expired','cancelled')
+            LIMIT 1
+        """, (user_id,))
+        if c.fetchone():
+            conn.close()
+            return False
+        c.execute("""
+            SELECT 1 FROM premium_subs
+            WHERE user_id = ? AND status IN ('active','expired','cancelled')
+            LIMIT 1
+        """, (user_id,))
+        row = c.fetchone()
+    conn.close()
+    return row is None
+
+async def is_first_purchase(user_id: int) -> bool:
+    return await run_in_executor(_is_first_purchase_sync, user_id)
