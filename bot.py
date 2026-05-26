@@ -2253,13 +2253,13 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await context.bot.send_message(
                     chat_id=admin_id,
-                    text=(
-                        f"🤝 <b>Yangi Affiliate So'rovi</b>\n\n"
-                        f"👤 {user.full_name} (@{user.username or 'yo'q'})\n"
-                        f"🆔 ID: <code>{user.id}</code>\n"
-                        f"📝 Kanal: {text}\n"
-                        f"🔑 Kod: <code>{aff_code}</code>"
-                    ),
+                   text=(
+                f"🤍 <b>Yangi Affiliate So'rovi</b>\n\n"
+                f"👤 {user.full_name} (@{user.username or 'yo\\'q'})\n"
+                f"◻️ ID: <code>{user.id}</code>\n"
+                f"📁 Kanal: {text}\n"
+                f"🔑 Kod: <code>{aff_code}</code>"
+            ),
                     parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup([[
                         InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"aff_approve_{user.id}"),
