@@ -22,7 +22,6 @@ except ImportError:
     USE_POSTGRES = False
 
 def get_conn():
-    """Database ulanish"""
     if USE_POSTGRES:
         conn = psycopg2.connect(
             os.environ["DATABASE_URL"],
@@ -43,13 +42,11 @@ _cache: Dict[str, Any] = {}
 _cache_ttl: Dict[str, float] = {}
 
 def cache_set(key: str, value: Any, ttl: int = 300):
-    """Cache ga saqlash (ttl - sekund)"""
     import time
     _cache[key] = value
     _cache_ttl[key] = time.time() + ttl
 
 def cache_get(key: str) -> Optional[Any]:
-    """Cache dan olish"""
     import time
     if key not in _cache:
         return None
@@ -59,19 +56,15 @@ def cache_get(key: str) -> Optional[Any]:
     return _cache[key]
 
 def cache_delete(key: str):
-    """Cache dan o'chirish"""
     _cache.pop(key, None)
     _cache_ttl.pop(key, None)
 
 # ===================== JADVALLAR =====================
 def init_db():
-    """Jadvallar yaratish"""
     conn = get_conn()
     c = conn.cursor()
-    ph = "%s" if USE_POSTGRES else "?"
 
     if USE_POSTGRES:
-        # Users
         c.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id    BIGINT PRIMARY KEY,
@@ -80,7 +73,6 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
-        # Subscriptions
         c.execute("""
             CREATE TABLE IF NOT EXISTS subscriptions (
                 id         SERIAL PRIMARY KEY,
@@ -93,7 +85,6 @@ def init_db():
                 expires_at TIMESTAMP
             )
         """)
-        # Screener subscriptions
         c.execute("""
             CREATE TABLE IF NOT EXISTS screener_subs (
                 id         SERIAL PRIMARY KEY,
@@ -105,7 +96,6 @@ def init_db():
                 expires_at TIMESTAMP
             )
         """)
-        # Premium subscriptions
         c.execute("""
             CREATE TABLE IF NOT EXISTS premium_subs (
                 id         SERIAL PRIMARY KEY,
@@ -117,7 +107,6 @@ def init_db():
                 expires_at TIMESTAMP
             )
         """)
-        # Portfolio
         c.execute("""
             CREATE TABLE IF NOT EXISTS portfolio (
                 id          SERIAL PRIMARY KEY,
@@ -129,7 +118,6 @@ def init_db():
                 added_at    TIMESTAMP DEFAULT NOW()
             )
         """)
-        # Daily limits
         c.execute("""
             CREATE TABLE IF NOT EXISTS daily_limits (
                 user_id        BIGINT NOT NULL,
@@ -139,7 +127,6 @@ def init_db():
                 PRIMARY KEY (user_id, limit_date)
             )
         """)
-        # Promo codes
         c.execute("""
             CREATE TABLE IF NOT EXISTS promo_codes (
                 id         SERIAL PRIMARY KEY,
@@ -151,7 +138,6 @@ def init_db():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
-        # Promo usage
         c.execute("""
             CREATE TABLE IF NOT EXISTS promo_usage (
                 user_id    BIGINT NOT NULL,
@@ -160,7 +146,6 @@ def init_db():
                 PRIMARY KEY (user_id, code)
             )
         """)
-        # Referrals
         c.execute("""
             CREATE TABLE IF NOT EXISTS referrals (
                 id            SERIAL PRIMARY KEY,
@@ -170,7 +155,6 @@ def init_db():
                 created_at    TIMESTAMP DEFAULT NOW()
             )
         """)
-        # Alerts
         c.execute("""
             CREATE TABLE IF NOT EXISTS alerts (
                 id          SERIAL PRIMARY KEY,
@@ -184,7 +168,6 @@ def init_db():
                 created_at  TIMESTAMP DEFAULT NOW()
             )
         """)
-        # Affiliates
         c.execute("""
             CREATE TABLE IF NOT EXISTS affiliates (
                 user_id    BIGINT PRIMARY KEY,
@@ -195,7 +178,6 @@ def init_db():
             )
         """)
     else:
-        # SQLite
         c.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id    INTEGER PRIMARY KEY,
@@ -315,7 +297,6 @@ def init_db():
 
 # ===================== ASYNC WRAPPER =====================
 async def run_in_executor(func, *args):
-    """Sync funksiyani async da ishlatish"""
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, func, *args)
 
@@ -347,10 +328,7 @@ async def save_user(user_id: int, username: str, full_name: str):
 def _get_all_users_sync() -> List[Dict]:
     conn = get_conn()
     c = conn.cursor()
-    if USE_POSTGRES:
-        c.execute("SELECT user_id, username, full_name, created_at FROM users ORDER BY created_at DESC")
-    else:
-        c.execute("SELECT user_id, username, full_name, created_at FROM users ORDER BY created_at DESC")
+    c.execute("SELECT user_id, username, full_name, created_at FROM users ORDER BY created_at DESC")
     rows = c.fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -380,7 +358,6 @@ async def get_daily_limit(user_id: int) -> Dict:
     return await run_in_executor(_get_daily_limit_sync, user_id)
 
 def _increment_daily_limit_sync(user_id: int, limit_type: str):
-    """limit_type: 'screener' yoki 'ai'"""
     today = str(date.today())
     conn = get_conn()
     c = conn.cursor()
@@ -393,12 +370,8 @@ def _increment_daily_limit_sync(user_id: int, limit_type: str):
             {col} = daily_limits.{col} + 1
         """, (user_id, today))
     else:
-        existing = _get_daily_limit_sync(user_id)
-        if existing.get("screener_count") == 0 and existing.get("ai_count") == 0:
-            c.execute(f"INSERT OR IGNORE INTO daily_limits (user_id, limit_date) VALUES (?,?)",
-                     (user_id, today))
-        c.execute(f"UPDATE daily_limits SET {col}={col}+1 WHERE user_id=? AND limit_date=?",
-                 (user_id, today))
+        c.execute("INSERT OR IGNORE INTO daily_limits (user_id, limit_date) VALUES (?,?)", (user_id, today))
+        c.execute(f"UPDATE daily_limits SET {col}={col}+1 WHERE user_id=? AND limit_date=?", (user_id, today))
     conn.commit()
     conn.close()
 
@@ -406,7 +379,6 @@ async def increment_daily_limit(user_id: int, limit_type: str):
     await run_in_executor(_increment_daily_limit_sync, user_id, limit_type)
 
 async def check_daily_limit(user_id: int, limit_type: str, max_count: int) -> bool:
-    """True = limit oshib ketmagan (ishlatsa bo'ladi)"""
     limits = await get_daily_limit(user_id)
     col = "screener_count" if limit_type == "screener" else "ai_count"
     return limits.get(col, 0) < max_count
@@ -415,11 +387,12 @@ async def check_daily_limit(user_id: int, limit_type: str, max_count: int) -> bo
 def _save_subscription_sync(user_id, username, full_name, sub_type, duration) -> int:
     from config import SIGNAL_PRICES, SCREENER_PRICES, CRYPTO_EDU_PRICE, STOCK_EDU_PRICE, PREMIUM_PRICE
     price_map = {
-        "signals": SIGNAL_PRICES.get(duration, 0),
+        "signals":          SIGNAL_PRICES.get(duration, 0),
         "onchain_screener": SCREENER_PRICES.get(duration, 0),
-        "crypto_edu": CRYPTO_EDU_PRICE,
-        "stock_edu": STOCK_EDU_PRICE,
-        "premium": PREMIUM_PRICE,
+        "crypto_edu":       CRYPTO_EDU_PRICE,
+        "stock_edu":        STOCK_EDU_PRICE,
+        "premium":          PREMIUM_PRICE,
+        "quant":            SIGNAL_PRICES.get(0, 0),
     }
     price = price_map.get(sub_type, 0)
     conn = get_conn()
@@ -450,31 +423,36 @@ def _approve_subscription_sync(sub_id: int, months: int):
     conn = get_conn()
     c = conn.cursor()
     now = datetime.now(timezone.utc)
-    if months == 0:
-        expires = None
-    else:
-        expires = now + timedelta(days=30 * months)
-
+    expires = None if months == 0 else now + timedelta(days=30 * months)
     if USE_POSTGRES:
-        c.execute("""
-            UPDATE subscriptions SET status='active', expires_at=%s WHERE id=%s
-        """, (expires, sub_id))
+        c.execute("UPDATE subscriptions SET status='active', expires_at=%s WHERE id=%s", (expires, sub_id))
     else:
-        exp_str = expires.isoformat() if expires else None
         c.execute("UPDATE subscriptions SET status='active', expires_at=? WHERE id=?",
-                 (exp_str, sub_id))
+                 (expires.isoformat() if expires else None, sub_id))
     conn.commit()
     conn.close()
 
 async def approve_subscription(sub_id: int, months: int):
     await run_in_executor(_approve_subscription_sync, sub_id, months)
 
+def _reject_subscription_sync(sub_id: int):
+    conn = get_conn()
+    c = conn.cursor()
+    if USE_POSTGRES:
+        c.execute("UPDATE subscriptions SET status='rejected' WHERE id=%s", (sub_id,))
+    else:
+        c.execute("UPDATE subscriptions SET status='rejected' WHERE id=?", (sub_id,))
+    conn.commit()
+    conn.close()
+
+async def reject_subscription(sub_id: int):
+    await run_in_executor(_reject_subscription_sync, sub_id)
+
 def _check_channel_access_sync(user_id: int, sub_type: str) -> bool:
     cache_key = f"access_{user_id}_{sub_type}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
-
     conn = get_conn()
     c = conn.cursor()
     now = datetime.now(timezone.utc).isoformat()
@@ -528,7 +506,6 @@ def _check_screener_access_sync(user_id: int) -> bool:
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
-
     conn = get_conn()
     c = conn.cursor()
     now = datetime.now(timezone.utc).isoformat()
@@ -559,8 +536,7 @@ def _approve_screener_sub_sync(sub_id: int, months: int):
     now = datetime.now(timezone.utc)
     expires = None if months == 0 else now + timedelta(days=30 * months)
     if USE_POSTGRES:
-        c.execute("UPDATE screener_subs SET status='active', expires_at=%s WHERE id=%s",
-                 (expires, sub_id))
+        c.execute("UPDATE screener_subs SET status='active', expires_at=%s WHERE id=%s", (expires, sub_id))
     else:
         c.execute("UPDATE screener_subs SET status='active', expires_at=? WHERE id=?",
                  (expires.isoformat() if expires else None, sub_id))
@@ -611,7 +587,6 @@ def _check_premium_access_sync(user_id: int) -> bool:
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
-
     conn = get_conn()
     c = conn.cursor()
     now = datetime.now(timezone.utc).isoformat()
@@ -895,15 +870,11 @@ async def update_referral_reward(referrer_id: int, referred_id: int, amount: int
         conn = get_conn()
         c = conn.cursor()
         if USE_POSTGRES:
-            c.execute("""
-                UPDATE referrals SET reward_amount=%s
-                WHERE referrer_id=%s AND referred_id=%s
-            """, (amount, referrer_id, referred_id))
+            c.execute("UPDATE referrals SET reward_amount=%s WHERE referrer_id=%s AND referred_id=%s",
+                     (amount, referrer_id, referred_id))
         else:
-            c.execute("""
-                UPDATE referrals SET reward_amount=?
-                WHERE referrer_id=? AND referred_id=?
-            """, (amount, referrer_id, referred_id))
+            c.execute("UPDATE referrals SET reward_amount=? WHERE referrer_id=? AND referred_id=?",
+                     (amount, referrer_id, referred_id))
         conn.commit()
         conn.close()
     await run_in_executor(_sync)
@@ -918,10 +889,8 @@ def _save_affiliate_sync(user_id: int, username: str):
             VALUES (%s, %s) ON CONFLICT (user_id) DO NOTHING
         """, (user_id, username or ""))
     else:
-        c.execute("""
-            INSERT OR IGNORE INTO affiliates (user_id, username)
-            VALUES (?,?)
-        """, (user_id, username or ""))
+        c.execute("INSERT OR IGNORE INTO affiliates (user_id, username) VALUES (?,?)",
+                 (user_id, username or ""))
     conn.commit()
     conn.close()
 
@@ -931,10 +900,7 @@ async def save_affiliate(user_id: int, username: str):
 def _get_pending_affiliates_sync() -> List[Dict]:
     conn = get_conn()
     c = conn.cursor()
-    if USE_POSTGRES:
-        c.execute("SELECT * FROM affiliates WHERE status='pending'")
-    else:
-        c.execute("SELECT * FROM affiliates WHERE status='pending'")
+    c.execute("SELECT * FROM affiliates WHERE status='pending'")
     rows = c.fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -960,14 +926,10 @@ def _get_stats_sync() -> Dict:
     conn = get_conn()
     c = conn.cursor()
     stats = {}
-    tables = ["users", "subscriptions", "screener_subs", "premium_subs"]
-    for table in tables:
+    for table in ["users", "subscriptions", "screener_subs", "premium_subs"]:
         c.execute(f"SELECT COUNT(*) FROM {table}")
         stats[f"total_{table}"] = c.fetchone()[0]
-    if USE_POSTGRES:
-        c.execute("SELECT COUNT(*) FROM subscriptions WHERE status='active'")
-    else:
-        c.execute("SELECT COUNT(*) FROM subscriptions WHERE status='active'")
+    c.execute("SELECT COUNT(*) FROM subscriptions WHERE status='active'")
     stats["active_subs"] = c.fetchone()[0]
     conn.close()
     return stats
@@ -981,34 +943,16 @@ def _get_non_subscribers_sync() -> List[Dict]:
     if USE_POSTGRES:
         c.execute("""
             SELECT u.* FROM users u
-            WHERE NOT EXISTS (
-                SELECT 1 FROM subscriptions s
-                WHERE s.user_id = u.user_id AND s.status = 'active'
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM screener_subs s
-                WHERE s.user_id = u.user_id AND s.status = 'active'
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM premium_subs s
-                WHERE s.user_id = u.user_id AND s.status = 'active'
-            )
+            WHERE NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.user_id=u.user_id AND s.status='active')
+            AND NOT EXISTS (SELECT 1 FROM screener_subs s WHERE s.user_id=u.user_id AND s.status='active')
+            AND NOT EXISTS (SELECT 1 FROM premium_subs s WHERE s.user_id=u.user_id AND s.status='active')
         """)
     else:
         c.execute("""
             SELECT u.* FROM users u
-            WHERE NOT EXISTS (
-                SELECT 1 FROM subscriptions s
-                WHERE s.user_id = u.user_id AND s.status = 'active'
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM screener_subs s
-                WHERE s.user_id = u.user_id AND s.status = 'active'
-            )
-            AND NOT EXISTS (
-                SELECT 1 FROM premium_subs s
-                WHERE s.user_id = u.user_id AND s.status = 'active'
-            )
+            WHERE NOT EXISTS (SELECT 1 FROM subscriptions s WHERE s.user_id=u.user_id AND s.status='active')
+            AND NOT EXISTS (SELECT 1 FROM screener_subs s WHERE s.user_id=u.user_id AND s.status='active')
+            AND NOT EXISTS (SELECT 1 FROM premium_subs s WHERE s.user_id=u.user_id AND s.status='active')
         """)
     rows = c.fetchall()
     conn.close()
@@ -1031,7 +975,6 @@ def _cancel_user_subscription_sync(user_id: int):
         c.execute("UPDATE premium_subs SET status='cancelled', expires_at=? WHERE user_id=?", (now, user_id))
     conn.commit()
     conn.close()
-    # Cache tozalash
     cache_delete(f"access_{user_id}_signals")
     cache_delete(f"screener_{user_id}")
     cache_delete(f"premium_{user_id}")
@@ -1064,15 +1007,11 @@ def _mark_expired_sync(user_id: int, sub_type: str):
     conn = get_conn()
     c = conn.cursor()
     if USE_POSTGRES:
-        c.execute("""
-            UPDATE subscriptions SET status='expired'
-            WHERE user_id=%s AND sub_type=%s AND status='active'
-        """, (user_id, sub_type))
+        c.execute("UPDATE subscriptions SET status='expired' WHERE user_id=%s AND sub_type=%s AND status='active'",
+                 (user_id, sub_type))
     else:
-        c.execute("""
-            UPDATE subscriptions SET status='expired'
-            WHERE user_id=? AND sub_type=? AND status='active'
-        """, (user_id, sub_type))
+        c.execute("UPDATE subscriptions SET status='expired' WHERE user_id=? AND sub_type=? AND status='active'",
+                 (user_id, sub_type))
     conn.commit()
     conn.close()
 
@@ -1113,16 +1052,3 @@ def _mark_screener_expired_sync(user_id: int):
 
 async def mark_screener_expired(user_id: int):
     await run_in_executor(_mark_screener_expired_sync, user_id)
-
-def _reject_subscription_sync(sub_id: int):
-    conn = get_conn()
-    c = conn.cursor()
-    if USE_POSTGRES:
-        c.execute("UPDATE subscriptions SET status='rejected' WHERE id=%s", (sub_id,))
-    else:
-        c.execute("UPDATE subscriptions SET status='rejected' WHERE id=?", (sub_id,))
-    conn.commit()
-    conn.close()
-
-async def reject_subscription(sub_id: int):
-    await run_in_executor(_reject_subscription_sync, sub_id)
