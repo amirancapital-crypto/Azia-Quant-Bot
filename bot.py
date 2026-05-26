@@ -255,7 +255,7 @@ async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, secti
     elif section == "promo_list":
         from config import ACTIVE_PROMO_CODES
         if not ACTIVE_PROMO_CODES:
-            txt = "🎟 <b>Promokodlar</b>\n\n😔 Hozircha amaldagi promokodlar yo'q.\n\n📢 Yangiliklari uchun: @azia_invest"
+            txt = "🎟 <b>Promokodlar</b>\n\n😔 Hozircha amaldagi promokodlar yo'q.\n\n📢 Yangiliklari uchun: @Azia_Invest"
         else:
             txt = "🎟 <b>Faol Promokodlar</b>\n\n"
             for promo in ACTIVE_PROMO_CODES:
@@ -319,19 +319,32 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ── SIGNALS ──
     elif data == "sec_signals":
         txt = (
-            "📊 <b>Signals</b>\n"
+            "📊 <b>SIGNAL XIZMATI</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n\n"
-            "🎯 Professional crypto va aksiya signallari\n\n"
-            "✅ Aniq kirish nuqtalari\n"
-            "✅ Take Profit darajalari\n"
-            "✅ Stop Loss tavsiyalari\n"
-            "✅ Risk menejment ko'rsatmalari\n"
-            "✅ Kvant algoritmlari asosida\n\n"
+            "Biz bozorda 'taxmin' bilan ishlamaymiz. "
+            "Signallarimiz faqat <b>uchta filtrdan o'tgan</b> aktivlar uchun shakllanadi:\n\n"
+            "📈 <b>Texnik tahlil:</b> Trend va zonalar aniqligi.\n"
+            "⛓ <b>Onchain:</b> 'Smart money' harakatlari va hajmlar.\n"
+            "🤖 <b>AI Screener:</b> Volatillik va risk parametrlari.\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "📦 <b>Sizga nima yetib keladi?</b>\n\n"
+            "Har bir signalda:\n\n"
+            "📍 Kirish nuqtasi\n"
+            "🎯 TP1 · TP2 · TP3 darajalari\n"
+            "🛡 Stop Loss chegarasi\n"
+            "⚖️ Risk/Reward nisbati\n\n"
+            "Tahlilni o'zingiz qilib o'tirmaysiz — "
+            "biz buni algoritmlar yordamida qilamiz.\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "💎 <b>OBUNA SHARTLARI:</b>\n\n"
+            f"🗓 6 oylik — <b>${SIGNAL_PRICES[6]}</b>\n"
+            f"📅 1 yillik — <b>${SIGNAL_PRICES[12]}</b>\n"
+            f"♾️ Doimiy — <b>${SIGNAL_PRICES[0]}</b>\n\n"
+            "🎟 <i>Birinchi marta obuna bo'layotganlar uchun:</i>\n"
+            "<code>WELCOME30</code> kodi bilan <b>30% chegirma!</b>\n\n"
             "━━━━━━━━━━━━━━━━━━━━\n"
-            "💰 <b>Narxlar:</b>\n"
-            f"• 🗓 6 oylik — <b>${SIGNAL_PRICES[6]}</b>\n"
-            f"• 📅 1 yillik — <b>${SIGNAL_PRICES[12]}</b>\n"
-            f"• ♾ Doimiy — <b>${SIGNAL_PRICES[0]}</b>"
+            "<i>👇 Quyidagi tugmalardan birini tanlang "
+            "va obuna jarayonini boshlang.</i>"
         )
         await q.edit_message_text(txt, parse_mode="HTML", reply_markup=signals_duration_menu())
 
@@ -353,14 +366,14 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Professional tahlil vositalari:\n\n"
                 "🔎 Aksiya Screener — AAPL, TSLA...\n"
                 "🔍 Crypto Screener — BTC, ETH...\n"
-                "🔗 Onchain Tahlil — zanjir ma'lumotlari\n"
+                "⛓ Onchain Tahlil — zanjir ma'lumotlari\n"
                 "😊 Sentiment — bozor kayfiyati\n\n"
                 "Qaysi bo'limni tanlaysiz?",
                 parse_mode="HTML",
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("🔎 Aksiya Screener",  callback_data="use_stock_screener")],
                     [InlineKeyboardButton("🔍 Crypto Screener",  callback_data="use_crypto_screener")],
-                    [InlineKeyboardButton("🔗 Onchain Tahlil",   callback_data="use_onchain_report")],
+                    [InlineKeyboardButton("⛓ Onchain Tahlil",   callback_data="use_onchain_report")],
                     [InlineKeyboardButton("😊 Sentiment Tahlil", callback_data="use_sentiment")],
                     [InlineKeyboardButton("⬅️ Ortga", callback_data="back")],
                 ])
@@ -369,11 +382,12 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             txt = (
                 "🔗 <b>Onchain + Screener</b>\n"
                 "━━━━━━━━━━━━━━━━━━━━\n\n"
-                "✅ Aksiya + Crypto Screener\n"
-                "✅ Onchain tahlil (BTC, ETH, SOL)\n"
-                "✅ Sentiment tahlil\n"
-                "✅ AI tahlil har screener natijasida\n"
-                "✅ Portfel kuzatuv + ogohlantirishlar\n\n"
+                "🔎 Aksiya + Crypto Screener\n"
+                "⛓ Onchain tahlil (BTC, ETH, SOL)\n"
+                "🤖 AI tahlil har screener natijasida\n"
+                "😊 Sentiment tahlil\n"
+                "💼 Portfel kuzatuv\n"
+                "🔔 Narx ogohlantirishlari\n\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 "💰 <b>Narxlar:</b>\n"
                 f"• 🗓 6 oylik — <b>${SCREENER_PRICES[6]}</b>\n"
@@ -460,67 +474,46 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             txt = (
                 "📚 <b>Crypto Darslar</b>\n"
                 "━━━━━━━━━━━━━━━━━━━━\n\n"
-                "✅ Blockchain asoslari\n"
-                "✅ Texnik tahlil\n"
-                "✅ Risk menejment\n"
-                "✅ DeFi va NFT\n"
-                "✅ Trading strategiyalari\n\n"
+                "₿ Blockchain asoslari\n"
+                "📈 Texnik tahlil\n"
+                "⚖️ Risk menejment\n"
+                "🏦 DeFi va NFT\n"
+                "🎯 Trading strategiyalari\n"
+                "🔐 Kriptovalyuta xavfsizligi\n\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 f"💰 <b>Narx: ${CRYPTO_EDU_PRICE} (Doimiy)</b>"
             )
             await q.edit_message_text(txt, parse_mode="HTML", reply_markup=confirm_menu("crypto_edu"))
 
-    # ── FOND BOZORI — TEZDA ──
     elif data == "sec_stock_edu":
         await q.edit_message_text(
             "📈 <b>Fond Bozori Darslar</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n\n"
-            "✅ Aksiya bozori asoslari\n"
-            "✅ Fundamental tahlil\n"
-            "✅ Texnik tahlil\n"
-            "✅ Portfel menejment\n"
-            "✅ Dividendlar strategiyasi\n\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
             "⏳ <b>Bu bo'lim hali faol emas</b>\n\n"
-            "Tez kunda ishga tushiriladi! 🚀\n\n"
-            "📢 Yangiliklar uchun: @azia_invest",
+            "Tez kunda ishga tushadi! 🚀\n\n"
+            "📢 Yangiliklar uchun: @AziaQuantBot",
             parse_mode="HTML",
             reply_markup=home_menu()
         )
 
-    # ── QUANT — TEZDA ──
     elif data == "sec_quant":
         await q.edit_message_text(
             "🤖 <b>Quant Trading</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n\n"
-            "✅ Algoritm asosida signallar\n"
-            "✅ Backtesting natijalari\n"
-            "✅ Avtomatik strategiyalar\n"
-            "✅ Real-time monitoring\n"
-            "✅ Risk-adjusted returns\n\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
             "⏳ <b>Bu bo'lim hali faol emas</b>\n\n"
-            "Tez kunda ishga tushiriladi! 🚀\n\n"
-            "📢 Yangiliklar uchun: @azia_invest",
+            "Tez kunda ishga tushadi! 🚀\n\n"
+            "📢 Yangiliklar uchun: @AziaQuantBot",
             parse_mode="HTML",
             reply_markup=home_menu()
         )
 
-    # ── AI ──
     elif data == "sec_ai":
-        context.user_data["ai_mode"]    = True
-        context.user_data["ai_history"] = []
         await q.edit_message_text(
             "🧠 <b>AI Moliyaviy Yordamchi</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n\n"
-            "Istalgan savol bering:\n\n"
-            "💡 <i>Misol savollar:</i>\n"
-            "• BTC hozir xarid qilish kerakmi?\n"
-            "• AAPL fundamental tahlili?\n"
-            "• Portfelimni qanday diversifikatsiya qilaman?\n\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "⌨️ Savolingizni yozing 👇\n"
-            "<i>Chiqish uchun /start</i>",
+            "⏳ <b>Bu bo'lim hali faol emas</b>\n\n"
+            "Tez kunda ishga tushadi! 🚀\n\n"
+            "📢 Yangiliklar uchun: @AziaQuantBot",
             parse_mode="HTML",
             reply_markup=home_menu()
         )
@@ -542,12 +535,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "💎 <b>Premium To'liq Paket</b>\n"
                 "━━━━━━━━━━━━━━━━━━━━\n\n"
                 "🔥 Barcha bo'limlar bir paketda!\n\n"
-                "✅ Signals\n"
-                "✅ Aksiya + Crypto Screener\n"
-                "✅ Onchain + Sentiment tahlil\n"
-                "✅ Crypto Darslar\n"
-                "✅ AI Yordamchi (cheksiz)\n"
-                "✅ Portfel kuzatuv\n\n"
+                "📊 Signals — professional signallar\n"
+                "🔎 Aksiya + Crypto Screener\n"
+                "⛓ Onchain + Sentiment tahlil\n"
+                "📚 Crypto Darslar\n"
+                "🤖 AI Yordamchi (cheksiz)\n"
+                "💼 Portfel kuzatuv\n"
+                "🔔 Ogohlantirishlar tizimi\n\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 f"💰 <b>Narx: ${PREMIUM_PRICE} (Doimiy)</b>"
             )
@@ -715,12 +709,12 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         context.user_data["portfolio_watch"] = True
         await q.edit_message_text(
-            "💼 <b>Aktiv qo'shish</b>\n\nTicker yozing:\n• Crypto: <code>BTC, ETH, SOL</code>\n• Aksiya: <code>AAPL, TSLA, NVDA</code>",
+            "💼 <b>Aktiv qo'shish</b>\n\nTicker yozing:\n• 🪙 Crypto: <code>BTC, ETH, SOL</code>\n• 📈 Aksiya: <code>AAPL, TSLA, NVDA</code>",
             parse_mode="HTML", reply_markup=section_back_menu("my_portfolio"))
 
     elif data == "portfolio_watch_done":
         await q.edit_message_text(
-            "🎉 <b>Rahmat!</b>\n\nAktivingiz qo'shildi. Portfelingizdagi aktivlar doim kuzatib boriladi.\n\n🔔 Muhim yangilik chiqsa darhol xabar beramiz!",
+            "🎉 <b>Rahmat!</b>\n\nAktivingiz qo'shildi.\n\n🔔 Muhim yangilik chiqsa darhol xabar beramiz!",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("🏠 Bosh menyuga qaytish", callback_data="back")
@@ -1097,7 +1091,8 @@ async def _handle_screener(update: Update, context: ContextTypes.DEFAULT_TYPE, t
         result = stock_service.get_screener_result(ticker, is_free=is_free)
         ticker_type = "stock"
     if not result:
-        await update.message.reply_text(f"❌ <b>{ticker}</b> topilmadi.\n\nTicker to'g'ri ekanligini tekshiring.", parse_mode="HTML")
+        await update.message.reply_text(
+            f"❌ <b>{ticker}</b> topilmadi.\n\nTicker to'g'ri ekanligini tekshiring.", parse_mode="HTML")
         return
     if not is_free and await has_any_paid_sub(user.id):
         ai_analysis = ai_service.analyze_screener(ticker, result, ticker_type)
