@@ -45,19 +45,19 @@ CHANNEL_IDS = {
     "onchain":    int(os.environ.get("CHANNEL_ONCHAIN_ID",    0)),
     "crypto_edu": int(os.environ.get("CHANNEL_CRYPTO_EDU_ID", 0)),
     "stock_edu":  int(os.environ.get("CHANNEL_STOCK_EDU_ID",  0)),
-    "public":     int(os.environ.get("CHANNEL_PUBLIC_ID",     0)),  # Bepul screener post kanalasi
+    "public":     int(os.environ.get("CHANNEL_PUBLIC_ID",     0)),
 }
 
 # ===================== NARXLAR ($) =====================
-SIGNAL_PRICES = {6: 100, 12: 200, 0: 300}
+SIGNAL_PRICES   = {6: 100, 12: 200, 0: 300}
 SCREENER_PRICES = {6: 100, 12: 200, 0: 300}
 CRYPTO_EDU_PRICE = 300
 STOCK_EDU_PRICE  = 300
 PREMIUM_PRICE    = 600
 
 # ===================== LIMITLAR =====================
-FREE_DAILY_SCREENER_LIMIT = 1    # Kuniga 1 ta screener
-FREE_DAILY_AI_LIMIT       = 10   # Kuniga 10 ta AI so'rov
+FREE_DAILY_SCREENER_LIMIT = 1
+FREE_DAILY_AI_LIMIT       = 10
 
 # ===================== REFERRAL =====================
 REFERRAL_PERCENT  = 10
@@ -66,16 +66,16 @@ AFFILIATE_PERCENT = 20
 # ===================== API KALITLAR =====================
 
 # 🤖 AI
-CLAUDE_API_KEY   = os.environ.get("CLAUDE_API_KEY", "")
-CLAUDE_MODEL     = "claude-sonnet-4-20250514"
+CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
+CLAUDE_MODEL   = "claude-sonnet-4-20250514"
 
 # 🪙 Crypto
-COINGECKO_API_KEY      = os.environ.get("COINGECKO_API_KEY", "")
-COINMARKETCAP_API_KEY  = os.environ.get("COINMARKETCAP_API_KEY", "")
+COINGECKO_API_KEY     = os.environ.get("COINGECKO_API_KEY", "")
+COINMARKETCAP_API_KEY = os.environ.get("COINMARKETCAP_API_KEY", "")
 
 # 📈 Aksiya
-FINNHUB_API_KEY  = os.environ.get("FINNHUB_API_KEY", "")
-POLYGON_API_KEY  = os.environ.get("POLYGON_API_KEY", "")
+FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
+POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY", "")
 
 # 🔗 Onchain
 GLASSNODE_API_KEY = os.environ.get("GLASSNODE_API_KEY", "")
@@ -91,21 +91,21 @@ CRYPTOPANIC_API_KEY = os.environ.get("CRYPTOPANIC_API_KEY", "")
 ISLAMICLY_API_KEY   = os.environ.get("ISLAMICLY_API_KEY", "")
 CRYPTOISLAM_API_KEY = os.environ.get("CRYPTOISLAM_API_KEY", "")
 
-# 🏦 Makro (bepul)
+# 🏦 Makro
 FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 
 # ===================== API BASE URLlar =====================
-COINGECKO_BASE    = "https://api.coingecko.com/api/v3"
+COINGECKO_BASE     = "https://api.coingecko.com/api/v3"
 COINMARKETCAP_BASE = "https://pro-api.coinmarketcap.com/v1"
-FINNHUB_BASE      = "https://finnhub.io/api/v1"
-POLYGON_BASE      = "https://api.polygon.io/v2"
-GLASSNODE_BASE    = "https://api.glassnode.com/v1"
-SANTIMENT_BASE    = "https://api.santiment.net/graphql"
-CRYPTOPANIC_BASE  = "https://cryptopanic.com/api/v1"
-ISLAMICLY_BASE    = "https://api.islamicly.com/v1"
-DEFILLAMA_BASE    = "https://api.llama.fi"
-ALTERNATIVE_BASE  = "https://api.alternative.me"
-FRED_BASE         = "https://api.stlouisfed.org/fred"
+FINNHUB_BASE       = "https://finnhub.io/api/v1"
+POLYGON_BASE       = "https://api.polygon.io/v2"
+GLASSNODE_BASE     = "https://api.glassnode.com/v1"
+SANTIMENT_BASE     = "https://api.santiment.net/graphql"
+CRYPTOPANIC_BASE   = "https://cryptopanic.com/api/v1"
+ISLAMICLY_BASE     = "https://api.islamicly.com/v1"
+DEFILLAMA_BASE     = "https://api.llama.fi"
+ALTERNATIVE_BASE   = "https://api.alternative.me"
+FRED_BASE          = "https://api.stlouisfed.org/fred"
 
 # ===================== SEKCIYALAR =====================
 SECTION_NAMES = {
@@ -117,7 +117,7 @@ SECTION_NAMES = {
     "premium":    "💎 Premium To'liq Paket",
 }
 
-CHANNEL_SECTIONS    = {"signals", "crypto_edu", "stock_edu"}
+CHANNEL_SECTIONS = {"signals", "crypto_edu", "stock_edu"}
 
 # ===================== CRYPTO TICKER MAP =====================
 CRYPTO_TICKER_MAP = {
@@ -140,48 +140,30 @@ CRYPTO_TICKER_MAP = {
 }
 
 # ===================== WELCOME MATNI =====================
-WELCOME_TEXT = """🌟 <b>Assalomu alaykum!</b>
-
-Azia Invest Quant botiga xush kelibsiz! 🤝
-
-━━━━━━━━━━━━━━━━━━━━
-
-🤖 <b>Bot haqida:</b>
-
-Bu bot murakkab AI algoritmlari asosida
-tuzilgan bo'lib foydalanuvchilarga:
-
-📊 Moliyaviy bozorlar tahlili
-📈 Aksiya va Crypto signallari
-🔍 Professional Screener xizmati
-🔗 Onchain tahlil ma'lumotlari
-📚 Moliyaviy ta'lim materiallari
-📋 Moliyaviy hisobotlar
-
-...kabi xizmatlarni taqdim etadi.
-
-━━━━━━━━━━━━━━━━━━━━
-
-⚡ <b>Azia Quant Bot</b> — kuchli Kvant
-algoritmlari asosida professional platforma.
-
-━━━━━━━━━━━━━━━━━━━━
-
-⚠️ <b>Risk haqida ogohlantirish!</b>
-
-🛡 Savdo intizomiga amal qiling
-📉 Risk menejmentni unutmang
-💡 Har bir qarorni mustaqil tahlil qiling
-🚫 100% kapitalingizni bitta aktivga qo'ymang!
-
-━━━━━━━━━━━━━━━━━━━━
-
-📢 <b>Kanalimiz:</b> @azia_invest
-📣 <b>Yangiliklar:</b> @aziaquantbot
-
-━━━━━━━━━━━━━━━━━━━━
-
-👇 Bo'limlardan birini tanlang:"""
+WELCOME_TEXT = (
+    "👋 <b>Xush kelibsiz, Azia Quant Bot'ga!</b>\n\n"
+    "<i>Moliya bozorlarini professional darajada tahlil qilish — "
+    "endi bir tugma masofasida.</i>\n\n"
+    "━━━━━━━━━━━━━━━━━━━━\n\n"
+    "🏆 <b>Nima uchun Azia Quant?</b>\n\n"
+    "📐 <b>Ma'lumotlarga asoslangan qarorlar</b>\n"
+    "   Kvant algoritmlari va AI tahlili — "
+    "his-tuyg'usiz, faqat raqamlar va faktlar.\n\n"
+    "⚡ <b>Vaqtingizni tejang</b>\n"
+    "   Kripto va aksiya bozorlarini soatlab kuzatish o'rniga, "
+    "tayyor tahlilni bir zumda oling.\n\n"
+    "🎯 <b>Professional darajadagi vositalar</b>\n"
+    "   Onchain tahlil, sentiment indeksi va real-time signallar — "
+    "ilgari faqat institutlarga xos imkoniyatlar.\n\n"
+    "━━━━━━━━━━━━━━━━━━━━\n\n"
+    "⚠️ <i>Eslatma: Barcha tahlillar faqat ma'lumot maqsadida. "
+    "Investitsiya qarorlari shaxsiy javobgarligingiz ostida.</i>\n\n"
+    "━━━━━━━━━━━━━━━━━━━━\n\n"
+    "📢 <b>Bizni kuzatib boring:</b>\n"
+    "• 📣 Kanal: @Azia_Invest\n"
+    "• 🤖 Yangiliklar: @AziaQuantBot\n\n"
+    "👇 <b>Boshlash uchun quyidagi bo'limlardan birini tanlang:</b>"
+)
 
 # ===================== FAOL PROMOKODLAR =====================
 ACTIVE_PROMO_CODES = [
