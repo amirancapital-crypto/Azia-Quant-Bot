@@ -2630,13 +2630,14 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sec_name   = SECTION_NAMES.get(sec, sec)
         price      = SIGNAL_PRICES.get(dur, CRYPTO_EDU_PRICE) if sec == 'signals' else CRYPTO_EDU_PRICE
         caption    = (
-            f"💳 <b>To'lov So'rovi #{sub_id}</b>\n\n"
-            f"👤 {sub['full_name']}\n"
-            f"🔖 @{sub.get('username') or 'yo\'q'}\n"
-            f"🆔 <code>{sub['user_id']}</code>\n"
-            f"📦 {sec_name}\n"
-            f"⏱ {dur_label}"
-        )
+           text = (
+                f"💳 <b>To'lov So'rovi #{sub_id}</b>\n\n"
+                f"👤 {sub['full_name']}\n"
+                f"🔖 @{sub.get('username') or 'yoq'}\n"
+                f"🆔 <code>{sub['user_id']}</code>\n"
+                f"📦 {sec_name}\n"
+                f"⏱ {dur_label}"
+            )
         markup = admin_approve_menu(sub_id, 'channel')
 
     elif sub_type == 'onchain_screener':
