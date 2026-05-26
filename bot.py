@@ -83,7 +83,6 @@ logger = logging.getLogger(__name__)
 # ===================== YORDAMCHI FUNKSIYALAR =====================
 
 async def is_admin(user) -> bool:
-    """Admin tekshirish"""
     if user.id in ADMIN_IDS:
         return True
     if user.username and user.username.lstrip("@") == ADMIN_USERNAME:
@@ -91,13 +90,7 @@ async def is_admin(user) -> bool:
     return False
 
 
-def generate_code(length: int = 8) -> str:
-    """Tasodifiy kod yaratish"""
-    return "".join(random.choices(string.ascii_uppercase + string.digits, k=length))
-
-
 def duration_label(months: int) -> str:
-    """Muddat belgisi"""
     if months == 0:  return "Doimiy ♾"
     if months == 6:  return "6 oylik"
     if months == 12: return "1 yillik"
@@ -105,7 +98,6 @@ def duration_label(months: int) -> str:
 
 
 def fmt_big(n) -> str:
-    """Katta sonlarni formatlash"""
     if not n: return "N/A"
     if n >= 1e12: return f"${n/1e12:.2f}T"
     if n >= 1e9:  return f"${n/1e9:.2f}B"
@@ -114,7 +106,6 @@ def fmt_big(n) -> str:
 
 
 async def check_subscription(user_id: int) -> dict:
-    """Foydalanuvchi obuna holati"""
     return {
         "signals":  await check_channel_access(user_id, "signals"),
         "screener": await check_screener_access(user_id),
@@ -123,19 +114,16 @@ async def check_subscription(user_id: int) -> dict:
 
 
 async def has_any_paid_sub(user_id: int) -> bool:
-    """Istalgan pullik obuna bormi"""
     subs = await check_subscription(user_id)
     return any(subs.values())
 
 
 async def send_payment_info(query_or_msg, section_name: str, price: int,
                              duration: str, sub_id: int, sub_type: str):
-    """To'lov ma'lumoti yuborish"""
     promo_btn = InlineKeyboardMarkup([
         [InlineKeyboardButton("🎟 Promo kod bormi?", callback_data=f"promo_{sub_type}_{sub_id}_{price}")],
         [InlineKeyboardButton("⬅️ Ortga", callback_data="back")],
     ])
-
     text = (
         f"💳 <b>TO'LOV MA'LUMOTI</b>\n\n"
         f"📦 Xizmat: <b>{section_name}</b>\n"
@@ -148,7 +136,6 @@ async def send_payment_info(query_or_msg, section_name: str, price: int,
         f"📸 To'lov chekini yuboring\n"
         f"⏰ Admin 24 soat ichida tasdiqlaydi"
     )
-
     if hasattr(query_or_msg, "edit_message_text"):
         await query_or_msg.edit_message_text(text, parse_mode="HTML", reply_markup=promo_btn)
     else:
@@ -158,11 +145,9 @@ async def send_payment_info(query_or_msg, section_name: str, price: int,
 # ===================== START =====================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start komandasi"""
     user = update.effective_user
     await save_user(user.id, user.username or "", user.full_name or "")
 
-    # User data tozalash
     keys_to_clear = [
         'waiting_payment', 'sub_type', 'sub_id', 'scr_sub_id', 'premium_sub_id',
         'screener_mode', 'ai_mode', 'ai_history', 'calc_mode',
@@ -172,14 +157,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for key in keys_to_clear:
         context.user_data.pop(key, None)
 
-    # Args tekshirish
     args = context.args
     if args:
         code = args[0]
         if code.startswith("ref_"):
-            referrer_code = code[4:]
             try:
-                referrer_id = int(referrer_code)
+                referrer_id = int(code[4:])
                 if referrer_id != user.id:
                     await save_referral(referrer_id, user.id)
             except ValueError:
@@ -187,7 +170,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif code.startswith("aff_"):
             context.user_data["affiliate_code"] = code[4:]
         else:
-            # Deep link — screener
             ticker = code.upper()
             admin = await is_admin(user)
             await update.message.reply_text(
@@ -210,39 +192,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _handle_screener_deeplink(update: Update, context: ContextTypes.DEFAULT_TYPE, ticker: str):
-    """Deep link orqali screener"""
     user  = update.effective_user
     admin = await is_admin(user)
-
-    await update.message.reply_text(
-        f"🔍 <b>{ticker}</b> bo'yicha tahlil olinmoqda...",
-        parse_mode="HTML"
-    )
+    await update.message.reply_text(f"🔍 <b>{ticker}</b> bo'yicha tahlil olinmoqda...", parse_mode="HTML")
     try:
         from config import CRYPTO_TICKER_MAP
         if ticker in CRYPTO_TICKER_MAP:
             result = crypto_service.get_screener_result(ticker, is_free=True)
         else:
             result = stock_service.get_screener_result(ticker, is_free=True)
-
         if result:
-            await update.message.reply_text(
-                result, parse_mode="HTML",
-                reply_markup=main_menu(is_admin=admin),
-                disable_web_page_preview=True
-            )
+            await update.message.reply_text(result, parse_mode="HTML",
+                reply_markup=main_menu(is_admin=admin), disable_web_page_preview=True)
         else:
-            await update.message.reply_text(
-                f"❌ <b>{ticker}</b> bo'yicha ma'lumot topilmadi.",
-                parse_mode="HTML",
-                reply_markup=main_menu(is_admin=admin)
-            )
+            await update.message.reply_text(f"❌ <b>{ticker}</b> bo'yicha ma'lumot topilmadi.",
+                parse_mode="HTML", reply_markup=main_menu(is_admin=admin))
     except Exception as e:
         logger.error(f"Deep link screener xato: {e}")
-        await update.message.reply_text(
-            "❌ Xatolik yuz berdi.",
-            reply_markup=main_menu(is_admin=admin)
-        )
+        await update.message.reply_text("❌ Xatolik yuz berdi.", reply_markup=main_menu(is_admin=admin))
 
 
 # ===================== REPLY KEYBOARD HANDLER =====================
@@ -258,7 +225,6 @@ REPLY_SECTIONS = {
 
 
 async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, section: str):
-    """Reply keyboard bo'lim ko'rsatish"""
     user  = update.effective_user
     admin = await is_admin(user)
 
@@ -283,20 +249,13 @@ async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, secti
             )
             return
         items = await get_portfolio(user.id)
-        await update.message.reply_text(
-            "💼 <b>Mening Portfelim</b>",
-            parse_mode="HTML",
-            reply_markup=portfolio_menu(items)
-        )
+        await update.message.reply_text("💼 <b>Mening Portfelim</b>",
+            parse_mode="HTML", reply_markup=portfolio_menu(items))
 
     elif section == "promo_list":
         from config import ACTIVE_PROMO_CODES
         if not ACTIVE_PROMO_CODES:
-            txt = (
-                "🎟 <b>Promokodlar</b>\n\n"
-                "😔 Hozircha amaldagi promokodlar yo'q.\n\n"
-                "📢 Yangiliklari uchun: @AziaQuantBot"
-            )
+            txt = "🎟 <b>Promokodlar</b>\n\n😔 Hozircha amaldagi promokodlar yo'q.\n\n📢 Yangiliklari uchun: @azia_invest"
         else:
             txt = "🎟 <b>Faol Promokodlar</b>\n\n"
             for promo in ACTIVE_PROMO_CODES:
@@ -315,8 +274,7 @@ async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, secti
         ref_link = f"https://t.me/azia_quant_bot?start=ref_{user.id}"
         txt = (
             f"👥 <b>Referral Tizimi</b>\n\n"
-            f"🔗 Sizning havolangiz:\n"
-            f"<code>{ref_link}</code>\n\n"
+            f"🔗 Sizning havolangiz:\n<code>{ref_link}</code>\n\n"
             f"📊 Statistika:\n"
             f"• Taklif qilinganlar: {stats['count']} ta\n"
             f"• Jami mukofot: ${stats['total_reward']}\n\n"
@@ -326,11 +284,8 @@ async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, secti
 
     elif section == "sec_admin":
         await update.message.reply_text(
-            f"💬 <b>Admin bilan aloqa</b>\n\n"
-            f"Savolingizni yuboring!\n\n"
-            f"📞 Admin: @{ADMIN_USERNAME}",
-            parse_mode="HTML",
-            reply_markup=home_menu()
+            f"💬 <b>Admin bilan aloqa</b>\n\nSavolingizni yuboring!\n\n📞 Admin: @{ADMIN_USERNAME}",
+            parse_mode="HTML", reply_markup=home_menu()
         )
 
     elif section == "open_admin":
@@ -338,35 +293,25 @@ async def show_section(update: Update, context: ContextTypes.DEFAULT_TYPE, secti
             await update.message.reply_text("❌ Ruxsat yo'q!")
             return
         await update.message.reply_text(
-            "👨‍💼 <b>Admin Panel</b>",
-            parse_mode="HTML",
-            reply_markup=admin_main_menu()
+            "👨‍💼 <b>Admin Panel</b>", parse_mode="HTML", reply_markup=admin_main_menu()
         )
 
 
 # ===================== BUTTON HANDLER =====================
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Barcha callback handler"""
     q    = update.callback_query
     user = update.effective_user
     data = q.data
     await q.answer()
 
-    # ── BOSH MENYU ──
     if data == "back":
         context.user_data.clear()
         admin = await is_admin(user)
         try:
-            await q.edit_message_text(
-                WELCOME_TEXT, parse_mode="HTML",
-                reply_markup=main_menu(is_admin=admin)
-            )
+            await q.edit_message_text(WELCOME_TEXT, parse_mode="HTML", reply_markup=main_menu(is_admin=admin))
         except:
-            await q.message.reply_text(
-                WELCOME_TEXT, parse_mode="HTML",
-                reply_markup=main_menu(is_admin=admin)
-            )
+            await q.message.reply_text(WELCOME_TEXT, parse_mode="HTML", reply_markup=main_menu(is_admin=admin))
 
     elif data == "sep":
         pass
@@ -392,7 +337,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith("sig_dur_"):
         duration = int(data.split("_")[2])
-        price    = SIGNAL_PRICES[duration]
+        price    = SIGNAL_PRICES.get(duration, 0)
         dur_lbl  = duration_label(duration)
         sub_id   = await save_subscription(user.id, user.username, user.full_name, "signals", duration)
         context.user_data.update({"waiting_payment": True, "sub_id": sub_id, "sub_type": "channel"})
@@ -439,7 +384,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith("scr_dur_"):
         duration = int(data.split("_")[2])
-        price    = SCREENER_PRICES[duration]
+        price    = SCREENER_PRICES.get(duration, 0)
         dur_lbl  = duration_label(duration)
         sub_id   = await save_screener_sub(user.id, user.username, user.full_name, duration)
         context.user_data.update({"waiting_payment": True, "scr_sub_id": sub_id, "sub_type": "onchain_screener"})
@@ -450,35 +395,28 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["screener_mode"] = "stock"
         await q.edit_message_text(
             "🔎 <b>Aksiya Screener</b>\n\nTicker yozing:\n<code>AAPL, TSLA, NVDA, MSFT</code>",
-            parse_mode="HTML",
-            reply_markup=section_back_menu("sec_onchain")
+            parse_mode="HTML", reply_markup=section_back_menu("sec_onchain")
         )
 
     elif data == "use_crypto_screener":
         context.user_data["screener_mode"] = "crypto"
         await q.edit_message_text(
             "🔍 <b>Crypto Screener</b>\n\nTicker yozing:\n<code>BTC, ETH, SOL, BNB</code>",
-            parse_mode="HTML",
-            reply_markup=section_back_menu("sec_onchain")
+            parse_mode="HTML", reply_markup=section_back_menu("sec_onchain")
         )
 
     elif data.startswith("refresh_"):
-        parts = data.split("_")
+        parts  = data.split("_")
         t_type = parts[1]
         ticker = parts[2]
-        await q.edit_message_text(
-            f"🔄 <b>{ticker}</b> yangilanmoqda...", parse_mode="HTML"
-        )
+        await q.edit_message_text(f"🔄 <b>{ticker}</b> yangilanmoqda...", parse_mode="HTML")
         if t_type == "crypto":
             result = crypto_service.get_screener_result(ticker)
         else:
             result = stock_service.get_screener_result(ticker)
         if result:
-            await q.edit_message_text(
-                result, parse_mode="HTML",
-                reply_markup=screener_action_menu(ticker, t_type),
-                disable_web_page_preview=True
-            )
+            await q.edit_message_text(result, parse_mode="HTML",
+                reply_markup=screener_action_menu(ticker, t_type), disable_web_page_preview=True)
 
     # ── ONCHAIN REPORT ──
     elif data == "use_onchain_report":
@@ -488,11 +426,8 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         await q.edit_message_text("⏳ Onchain ma'lumotlar olinmoqda...", parse_mode="HTML")
         report = onchain_service.get_full_report()
-        await q.edit_message_text(
-            report, parse_mode="HTML",
-            reply_markup=section_back_menu("sec_onchain"),
-            disable_web_page_preview=True
-        )
+        await q.edit_message_text(report, parse_mode="HTML",
+            reply_markup=section_back_menu("sec_onchain"), disable_web_page_preview=True)
 
     # ── SENTIMENT ──
     elif data == "use_sentiment":
@@ -502,8 +437,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         await q.edit_message_text(
             "😊 <b>Sentiment Tahlil</b>\n\nTicker yozing:\n<code>BTC, ETH, SOL</code>",
-            parse_mode="HTML",
-            reply_markup=section_back_menu("sec_onchain")
+            parse_mode="HTML", reply_markup=section_back_menu("sec_onchain")
         )
         context.user_data["screener_mode"] = "sentiment"
 
@@ -536,37 +470,27 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await q.edit_message_text(txt, parse_mode="HTML", reply_markup=confirm_menu("crypto_edu"))
 
+    # ── FOND BOZORI — TEZDA ──
     elif data == "sec_stock_edu":
-        has_access = await check_channel_access(user.id, "stock_edu") or await check_premium_access(user.id)
-        if has_access:
-            await q.edit_message_text(
-                "📈 <b>Fond Bozori Darslar</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━\n\n"
-                "✅ Kirish huquqi faol!\n\n"
-                "Darslar kanaliga o'ting 👇",
-                parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📖 Darslar kanaliga o'tish", url="https://t.me/+example")],
-                    [InlineKeyboardButton("⬅️ Ortga", callback_data="back")],
-                ])
-            )
-        else:
-            txt = (
-                "📈 <b>Fond Bozori Darslar</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━\n\n"
-                "✅ Aksiya bozori asoslari\n"
-                "✅ Fundamental tahlil\n"
-                "✅ Texnik tahlil\n"
-                "✅ Portfel menejment\n"
-                "✅ Dividendlar strategiyasi\n\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                f"💰 <b>Narx: ${STOCK_EDU_PRICE} (Doimiy)</b>"
-            )
-            await q.edit_message_text(txt, parse_mode="HTML", reply_markup=confirm_menu("stock_edu"))
+        await q.edit_message_text(
+            "📈 <b>Fond Bozori Darslar</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "✅ Aksiya bozori asoslari\n"
+            "✅ Fundamental tahlil\n"
+            "✅ Texnik tahlil\n"
+            "✅ Portfel menejment\n"
+            "✅ Dividendlar strategiyasi\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "⏳ <b>Bu bo'lim hali faol emas</b>\n\n"
+            "Tez kunda ishga tushiriladi! 🚀\n\n"
+            "📢 Yangiliklar uchun: @azia_invest",
+            parse_mode="HTML",
+            reply_markup=home_menu()
+        )
 
-    # ── QUANT ──
+    # ── QUANT — TEZDA ──
     elif data == "sec_quant":
-        txt = (
+        await q.edit_message_text(
             "🤖 <b>Quant Trading</b>\n"
             "━━━━━━━━━━━━━━━━━━━━\n\n"
             "✅ Algoritm asosida signallar\n"
@@ -574,10 +498,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "✅ Avtomatik strategiyalar\n"
             "✅ Real-time monitoring\n"
             "✅ Risk-adjusted returns\n\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            f"💰 <b>Narx: ${SIGNAL_PRICES[0]} (Doimiy)</b>"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "⏳ <b>Bu bo'lim hali faol emas</b>\n\n"
+            "Tez kunda ishga tushiriladi! 🚀\n\n"
+            "📢 Yangiliklar uchun: @azia_invest",
+            parse_mode="HTML",
+            reply_markup=home_menu()
         )
-        await q.edit_message_text(txt, parse_mode="HTML", reply_markup=confirm_menu("quant"))
 
     # ── AI ──
     elif data == "sec_ai":
@@ -618,8 +545,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "✅ Signals\n"
                 "✅ Aksiya + Crypto Screener\n"
                 "✅ Onchain + Sentiment tahlil\n"
-                "✅ Crypto + Aksiya Darslar\n"
-                "✅ Quant Trading\n"
+                "✅ Crypto Darslar\n"
                 "✅ AI Yordamchi (cheksiz)\n"
                 "✅ Portfel kuzatuv\n\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
@@ -634,14 +560,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sub_id = await save_subscription(user.id, user.username, user.full_name, "crypto_edu", 0)
             context.user_data.update({"waiting_payment": True, "sub_id": sub_id, "sub_type": "channel"})
             await send_payment_info(q, "📚 Crypto Darslar", CRYPTO_EDU_PRICE, "Doimiy ♾", sub_id, "channel")
-        elif section == "stock_edu":
-            sub_id = await save_subscription(user.id, user.username, user.full_name, "stock_edu", 0)
-            context.user_data.update({"waiting_payment": True, "sub_id": sub_id, "sub_type": "channel"})
-            await send_payment_info(q, "📈 Fond Bozori Darslar", STOCK_EDU_PRICE, "Doimiy ♾", sub_id, "channel")
-        elif section == "quant":
-            sub_id = await save_subscription(user.id, user.username, user.full_name, "quant", 0)
-            context.user_data.update({"waiting_payment": True, "sub_id": sub_id, "sub_type": "channel"})
-            await send_payment_info(q, "🤖 Quant Trading", SIGNAL_PRICES[0], "Doimiy ♾", sub_id, "channel")
         elif section == "premium":
             sub_id = await save_premium_sub(user.id, user.username, user.full_name)
             context.user_data.update({"waiting_payment": True, "premium_sub_id": sub_id, "sub_type": "premium"})
@@ -657,35 +575,26 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["promo_sub_id"]   = sub_id
         context.user_data["promo_price"]    = price
         context.user_data["promo_input"]    = True
-        await q.edit_message_text(
-            "🎟 <b>Promo kod kiriting:</b>",
-            parse_mode="HTML",
-            reply_markup=home_menu()
-        )
+        await q.edit_message_text("🎟 <b>Promo kod kiriting:</b>", parse_mode="HTML", reply_markup=home_menu())
 
     # ── BEPUL XIZMATLAR ──
     elif data == "sec_free":
         await q.edit_message_text(
             "🆓 <b>Bepul Xizmatlar</b>\n\nQuyidagilardan birini tanlang:",
-            parse_mode="HTML",
-            reply_markup=free_menu()
+            parse_mode="HTML", reply_markup=free_menu()
         )
 
     elif data == "free_market":
         await q.edit_message_text("⏳ Ma'lumot olinmoqda...", parse_mode="HTML")
         report = onchain_service.get_full_report()
-        await q.edit_message_text(
-            report, parse_mode="HTML",
-            reply_markup=section_back_menu("sec_free"),
-            disable_web_page_preview=True
-        )
+        await q.edit_message_text(report, parse_mode="HTML",
+            reply_markup=section_back_menu("sec_free"), disable_web_page_preview=True)
 
     elif data == "free_screener":
         context.user_data["screener_mode"] = "free"
         await q.edit_message_text(
             "🔍 <b>Bepul Screener</b>\n\nTicker yozing:\n<code>BTC, ETH, AAPL, TSLA</code>",
-            parse_mode="HTML",
-            reply_markup=section_back_menu("sec_free")
+            parse_mode="HTML", reply_markup=section_back_menu("sec_free")
         )
 
     elif data == "free_news":
@@ -700,42 +609,31 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 txt += "\n"
         else:
             txt = "📰 Yangiliklar topilmadi"
-        await q.edit_message_text(
-            txt, parse_mode="HTML",
-            reply_markup=section_back_menu("sec_free"),
-            disable_web_page_preview=True
-        )
+        await q.edit_message_text(txt, parse_mode="HTML",
+            reply_markup=section_back_menu("sec_free"), disable_web_page_preview=True)
 
     elif data == "free_calc":
         await q.edit_message_text(
             "🔢 <b>Kalkulyatorlar</b>\n\nKerakli kalkulyatorni tanlang:",
-            parse_mode="HTML",
-            reply_markup=calculator_menu()
+            parse_mode="HTML", reply_markup=calculator_menu()
         )
 
     elif data == "free_calc_back":
         await q.edit_message_text(
             "🔢 <b>Kalkulyatorlar</b>\n\nKerakli kalkulyatorni tanlang:",
-            parse_mode="HTML",
-            reply_markup=calculator_menu()
+            parse_mode="HTML", reply_markup=calculator_menu()
         )
 
     elif data == "free_lesson":
-        txt = _get_daily_lesson()
-        await q.edit_message_text(
-            txt, parse_mode="HTML",
-            reply_markup=section_back_menu("sec_free")
-        )
+        await q.edit_message_text(_get_daily_lesson(), parse_mode="HTML",
+            reply_markup=section_back_menu("sec_free"))
 
     elif data == "free_calendar":
         await q.edit_message_text(
             "📅 <b>Ekonomik Kalendar</b>\n\nBu hafta muhim voqealar:\n\n"
             "• <a href='https://www.forexfactory.com/calendar'>Forex Factory</a>\n"
             "• <a href='https://coinmarketcal.com'>CoinMarketCal</a>",
-            parse_mode="HTML",
-            reply_markup=section_back_menu("sec_free"),
-            disable_web_page_preview=True
-        )
+            parse_mode="HTML", reply_markup=section_back_menu("sec_free"), disable_web_page_preview=True)
 
     elif data == "free_ipo":
         await q.edit_message_text("⏳ IPO ma'lumotlari olinmoqda...", parse_mode="HTML")
@@ -753,53 +651,34 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not count:
                 ipo_txt += "Ma'lumot topilmadi"
         except:
-            ipo_txt = "🏢 <b>IPO Tracker</b>\n\nMa'lumot olinmadi. Keyinroq urinib ko'ring."
-        await q.edit_message_text(
-            ipo_txt, parse_mode="HTML",
-            reply_markup=section_back_menu("sec_free"),
-            disable_web_page_preview=True
-        )
+            ipo_txt = "🏢 <b>IPO Tracker</b>\n\nMa'lumot olinmadi."
+        await q.edit_message_text(ipo_txt, parse_mode="HTML",
+            reply_markup=section_back_menu("sec_free"), disable_web_page_preview=True)
 
     # ── KALKULYATORLAR ──
     elif data == "calc_rr":
         context.user_data["calc_mode"] = "rr"
         await q.edit_message_text(
-            "⚖️ <b>Risk/Reward Kalkulyatori</b>\n\n"
-            "Format: <code>kirish stop maqsad</code>\n"
-            "Misol: <code>100 90 130</code>",
-            parse_mode="HTML",
-            reply_markup=section_back_menu("free_calc")
-        )
+            "⚖️ <b>Risk/Reward Kalkulyatori</b>\n\nFormat: <code>kirish stop maqsad</code>\nMisol: <code>100 90 130</code>",
+            parse_mode="HTML", reply_markup=section_back_menu("free_calc"))
 
     elif data == "calc_position":
         context.user_data["calc_mode"] = "position"
         await q.edit_message_text(
-            "📏 <b>Pozitsiya Hajmi</b>\n\n"
-            "Format: <code>kapital risk% stop%</code>\n"
-            "Misol: <code>10000 2 5</code>",
-            parse_mode="HTML",
-            reply_markup=section_back_menu("free_calc")
-        )
+            "📏 <b>Pozitsiya Hajmi</b>\n\nFormat: <code>kapital risk% stop%</code>\nMisol: <code>10000 2 5</code>",
+            parse_mode="HTML", reply_markup=section_back_menu("free_calc"))
 
     elif data == "calc_compound":
         context.user_data["calc_mode"] = "compound"
         await q.edit_message_text(
-            "📈 <b>Compound Foiz</b>\n\n"
-            "Format: <code>kapital foiz% oy</code>\n"
-            "Misol: <code>1000 5 12</code>",
-            parse_mode="HTML",
-            reply_markup=section_back_menu("free_calc")
-        )
+            "📈 <b>Compound Foiz</b>\n\nFormat: <code>kapital foiz% oy</code>\nMisol: <code>1000 5 12</code>",
+            parse_mode="HTML", reply_markup=section_back_menu("free_calc"))
 
     elif data == "calc_breakeven":
         context.user_data["calc_mode"] = "breakeven"
         await q.edit_message_text(
-            "🎯 <b>Break-even</b>\n\n"
-            "Format: <code>narx komissiya%</code>\n"
-            "Misol: <code>100 0.1</code>",
-            parse_mode="HTML",
-            reply_markup=section_back_menu("free_calc")
-        )
+            "🎯 <b>Break-even</b>\n\nFormat: <code>narx komissiya%</code>\nMisol: <code>100 0.1</code>",
+            parse_mode="HTML", reply_markup=section_back_menu("free_calc"))
 
     # ── PORTFEL ──
     elif data == "my_portfolio":
@@ -813,19 +692,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         items = await get_portfolio(user.id)
-        await q.edit_message_text(
-            "💼 <b>Mening Portfelim</b>",
-            parse_mode="HTML",
-            reply_markup=portfolio_menu(items)
-        )
+        await q.edit_message_text("💼 <b>Mening Portfelim</b>",
+            parse_mode="HTML", reply_markup=portfolio_menu(items))
 
     elif data == "portfolio_back":
         admin = await is_admin(user)
         try:
-            await q.message.reply_text(
-                WELCOME_TEXT, parse_mode="HTML",
-                reply_markup=main_menu(is_admin=admin)
-            )
+            await q.message.reply_text(WELCOME_TEXT, parse_mode="HTML", reply_markup=main_menu(is_admin=admin))
             await q.delete_message()
         except:
             pass
@@ -842,20 +715,12 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         context.user_data["portfolio_watch"] = True
         await q.edit_message_text(
-            "💼 <b>Aktiv qo'shish</b>\n\n"
-            "Ticker yozing:\n"
-            "• Crypto: <code>BTC, ETH, SOL</code>\n"
-            "• Aksiya: <code>AAPL, TSLA, NVDA</code>",
-            parse_mode="HTML",
-            reply_markup=section_back_menu("my_portfolio")
-        )
+            "💼 <b>Aktiv qo'shish</b>\n\nTicker yozing:\n• Crypto: <code>BTC, ETH, SOL</code>\n• Aksiya: <code>AAPL, TSLA, NVDA</code>",
+            parse_mode="HTML", reply_markup=section_back_menu("my_portfolio"))
 
     elif data == "portfolio_watch_done":
         await q.edit_message_text(
-            "🎉 <b>Rahmat!</b>\n\n"
-            "Aktivingiz qo'shildi. Portfelingizdagi aktivlar "
-            "doim kuzatib boriladi.\n\n"
-            "🔔 Muhim yangilik chiqsa darhol xabar beramiz!",
+            "🎉 <b>Rahmat!</b>\n\nAktivingiz qo'shildi. Portfelingizdagi aktivlar doim kuzatib boriladi.\n\n🔔 Muhim yangilik chiqsa darhol xabar beramiz!",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("🏠 Bosh menyuga qaytish", callback_data="back")
@@ -866,11 +731,8 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         item_id = int(data.split("_")[2])
         await delete_portfolio(item_id, user.id)
         items = await get_portfolio(user.id)
-        await q.edit_message_text(
-            "💼 <b>Mening Portfelim</b>",
-            parse_mode="HTML",
-            reply_markup=portfolio_menu(items)
-        )
+        await q.edit_message_text("💼 <b>Mening Portfelim</b>",
+            parse_mode="HTML", reply_markup=portfolio_menu(items))
 
     elif data == "portfolio_news":
         await q.edit_message_text("⏳ Yangiliklar olinmoqda...", parse_mode="HTML")
@@ -889,36 +751,28 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 txt += "\n"
         if txt == "📰 <b>Portfel Yangiliklari</b>\n\n":
             txt += "Yangiliklar topilmadi"
-        await q.edit_message_text(
-            txt, parse_mode="HTML",
-            reply_markup=section_back_menu("my_portfolio"),
-            disable_web_page_preview=True
-        )
+        await q.edit_message_text(txt, parse_mode="HTML",
+            reply_markup=section_back_menu("my_portfolio"), disable_web_page_preview=True)
 
     # ── OGOHLANTIRISH ──
     elif data.startswith("alert_set_"):
-        parts = data.split("_")
+        parts  = data.split("_")
         t_type = parts[2]
         ticker = parts[3]
         await q.edit_message_text(
             f"🔔 <b>{ticker} uchun ogohlantirish</b>\n\nTurini tanlang:",
-            parse_mode="HTML",
-            reply_markup=alert_type_menu(ticker, t_type)
-        )
+            parse_mode="HTML", reply_markup=alert_type_menu(ticker, t_type))
 
     elif data.startswith("alert_price_") or data.startswith("alert_rsi_") or data.startswith("alert_pct_"):
-        parts = data.split("_")
+        parts  = data.split("_")
         a_type = parts[1]
         t_type = parts[2]
         ticker = parts[3]
-        context.user_data["alert_type"]   = a_type
-        context.user_data["alert_ticker"] = ticker
+        context.user_data["alert_type"]        = a_type
+        context.user_data["alert_ticker"]      = ticker
         context.user_data["alert_ticker_type"] = t_type
-        await q.edit_message_text(
-            f"📊 Shart tanlang:",
-            parse_mode="HTML",
-            reply_markup=alert_condition_menu(a_type, ticker, t_type)
-        )
+        await q.edit_message_text("📊 Shart tanlang:", parse_mode="HTML",
+            reply_markup=alert_condition_menu(a_type, ticker, t_type))
 
     elif data.startswith("alert_cond_"):
         parts     = data.split("_")
@@ -926,34 +780,25 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         a_type    = parts[3]
         t_type    = parts[4]
         ticker    = parts[5]
-        context.user_data["alert_condition"] = condition
-        context.user_data["alert_type"]      = a_type
-        context.user_data["alert_ticker"]    = ticker
+        context.user_data["alert_condition"]   = condition
+        context.user_data["alert_type"]        = a_type
+        context.user_data["alert_ticker"]      = ticker
         context.user_data["alert_ticker_type"] = t_type
-        context.user_data["alert_input"]     = True
+        context.user_data["alert_input"]       = True
         labels = {"price": "narx", "rsi": "RSI", "pct": "foiz o'zgarish"}
         await q.edit_message_text(
-            f"🔔 {labels.get(a_type, a_type)} qiymatini kiriting:\n"
-            f"Misol: <code>50000</code>",
-            parse_mode="HTML",
-            reply_markup=home_menu()
-        )
+            f"🔔 {labels.get(a_type, a_type)} qiymatini kiriting:\nMisol: <code>50000</code>",
+            parse_mode="HTML", reply_markup=home_menu())
 
     elif data.startswith("alert_del_"):
         alert_id = int(data.split("_")[2])
         await delete_alert(alert_id, user.id)
         alerts = await get_user_alerts(user.id)
         if alerts:
-            await q.edit_message_text(
-                "🔔 <b>Ogohlantirishlar</b>",
-                parse_mode="HTML",
-                reply_markup=my_alerts_menu(alerts)
-            )
+            await q.edit_message_text("🔔 <b>Ogohlantirishlar</b>",
+                parse_mode="HTML", reply_markup=my_alerts_menu(alerts))
         else:
-            await q.edit_message_text(
-                "🔔 Ogohlantirishlar yo'q",
-                reply_markup=home_menu()
-            )
+            await q.edit_message_text("🔔 Ogohlantirishlar yo'q", reply_markup=home_menu())
 
     # ── REFERRAL ──
     elif data == "referral_menu":
@@ -961,8 +806,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ref_link = f"https://t.me/azia_quant_bot?start=ref_{user.id}"
         txt = (
             f"👥 <b>Referral Tizimi</b>\n\n"
-            f"🔗 Sizning havolangiz:\n"
-            f"<code>{ref_link}</code>\n\n"
+            f"🔗 Sizning havolangiz:\n<code>{ref_link}</code>\n\n"
             f"📊 Statistika:\n"
             f"• Taklif qilinganlar: {stats['count']} ta\n"
             f"• Jami mukofot: ${stats['total_reward']}\n\n"
@@ -973,32 +817,21 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "ref_stats":
         stats = await get_referral_stats(user.id)
         await q.edit_message_text(
-            f"📊 <b>Referral Statistika</b>\n\n"
-            f"• Taklif qilinganlar: {stats['count']} ta\n"
-            f"• Jami mukofot: ${stats['total_reward']}",
-            parse_mode="HTML",
-            reply_markup=section_back_menu("referral_menu")
-        )
+            f"📊 <b>Referral Statistika</b>\n\n• Taklif qilinganlar: {stats['count']} ta\n• Jami mukofot: ${stats['total_reward']}",
+            parse_mode="HTML", reply_markup=section_back_menu("referral_menu"))
 
     elif data == "ref_affiliate":
         await save_affiliate(user.id, user.username or "")
         await q.edit_message_text(
-            "🤝 <b>Affiliate so'rovingiz yuborildi!</b>\n\n"
-            "Admin tez orada ko'rib chiqadi.",
-            parse_mode="HTML",
-            reply_markup=home_menu()
-        )
+            "🤝 <b>Affiliate so'rovingiz yuborildi!</b>\n\nAdmin tez orada ko'rib chiqadi.",
+            parse_mode="HTML", reply_markup=home_menu())
 
     # ── ADMIN ──
     elif data == "open_admin":
         if not await is_admin(user):
             await q.answer("❌ Ruxsat yo'q!", show_alert=True)
             return
-        await q.edit_message_text(
-            "👨‍💼 <b>Admin Panel</b>",
-            parse_mode="HTML",
-            reply_markup=admin_main_menu()
-        )
+        await q.edit_message_text("👨‍💼 <b>Admin Panel</b>", parse_mode="HTML", reply_markup=admin_main_menu())
 
     elif data == "admin_stats":
         if not await is_admin(user):
@@ -1017,24 +850,21 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not await is_admin(user):
             await q.answer("❌ Ruxsat yo'q!", show_alert=True)
             return
-        page     = int(data.split("_")[-1]) if data.startswith("admin_users_page_") else 0
-        per_page = 10
+        page       = int(data.split("_")[-1]) if data.startswith("admin_users_page_") else 0
+        per_page   = 10
         users_list = await get_all_users()
-        total    = len(users_list)
-        start    = page * per_page
-        end      = start + per_page
+        total      = len(users_list)
+        start      = page * per_page
+        end        = start + per_page
         page_users = users_list[start:end]
-
-        txt = f"👥 <b>Foydalanuvchilar ({total} ta)</b> | Sahifa {page+1}/{(total-1)//per_page+1}\n\n"
+        txt = f"👥 <b>Foydalanuvchilar ({total} ta)</b> | Sahifa {page+1}/{max(1,(total-1)//per_page+1)}\n\n"
         for u in page_users:
             uname   = f"@{u.get('username')}" if u.get("username") else "—"
             created = str(u.get("created_at", ""))[:16]
             has_sub = await has_any_paid_sub(u.get("user_id"))
             icon    = "✅" if has_sub else "🆓"
-            txt += f"{icon} {u.get('full_name', '')} {uname}\n"
-            txt += f"   🆔 {u.get('user_id')} | 📅 {created}\n"
-        txt += f"\n✅ Obunachi | 🆓 Bepul"
-
+            txt += f"{icon} {u.get('full_name', '')} {uname}\n   🆔 {u.get('user_id')} | 📅 {created}\n"
+        txt += "\n✅ Obunachi | 🆓 Bepul"
         nav = []
         if page > 0:
             nav.append(InlineKeyboardButton("⬅️ Oldingi", callback_data=f"admin_users_page_{page-1}"))
@@ -1049,26 +879,23 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not await is_admin(user):
             await q.answer("❌ Ruxsat yo'q!", show_alert=True)
             return
-        page     = int(data.split("_")[-1]) if data.startswith("admin_all_users_page_") else 0
-        per_page = 10
+        page           = int(data.split("_")[-1]) if data.startswith("admin_all_users_page_") else 0
+        per_page       = 10
         all_users_list = await get_all_bot_users()
-        non_subs = await get_non_subscribers()
-        non_ids  = {u["user_id"] for u in non_subs}
-        total    = len(all_users_list)
-        start    = page * per_page
-        end      = start + per_page
-        page_u   = all_users_list[start:end]
-
-        txt = f"👤 <b>Barcha foydalanuvchilar ({total} ta)</b> | Sahifa {page+1}/{(total-1)//per_page+1}\n\n"
+        non_subs       = await get_non_subscribers()
+        non_ids        = {u["user_id"] for u in non_subs}
+        total          = len(all_users_list)
+        start          = page * per_page
+        end            = start + per_page
+        page_u         = all_users_list[start:end]
+        txt = f"👤 <b>Barcha foydalanuvchilar ({total} ta)</b> | Sahifa {page+1}/{max(1,(total-1)//per_page+1)}\n\n"
         for u in page_u:
             uid     = u.get("user_id")
             uname   = f"@{u.get('username')}" if u.get("username") else "—"
             created = str(u.get("created_at", ""))[:16]
             icon    = "🆓" if uid in non_ids else "✅"
-            txt += f"{icon} {u.get('full_name', '')} {uname}\n"
-            txt += f"   🆔 {uid} | 📅 {created}\n"
-        txt += f"\n✅ Obunachi | 🆓 Bepul"
-
+            txt += f"{icon} {u.get('full_name', '')} {uname}\n   🆔 {uid} | 📅 {created}\n"
+        txt += "\n✅ Obunachi | 🆓 Bepul"
         nav = []
         if page > 0:
             nav.append(InlineKeyboardButton("⬅️ Oldingi", callback_data=f"admin_all_users_page_{page-1}"))
@@ -1080,50 +907,32 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(txt, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
 
     elif data == "admin_broadcast":
-        if not await is_admin(user):
-            return
+        if not await is_admin(user): return
         context.user_data["admin_broadcast"] = True
-        await q.edit_message_text(
-            "📢 <b>Barchaga xabar</b>\n\nXabar yozing yoki rasm+matn yuboring:",
-            parse_mode="HTML",
-            reply_markup=home_menu()
-        )
+        await q.edit_message_text("📢 <b>Barchaga xabar</b>\n\nXabar yozing yoki rasm+matn yuboring:",
+            parse_mode="HTML", reply_markup=home_menu())
 
     elif data == "admin_broadcast_nonsub":
-        if not await is_admin(user):
-            return
+        if not await is_admin(user): return
         context.user_data["admin_broadcast_nonsub"] = True
-        await q.edit_message_text(
-            "📣 <b>Obuna bo'lmaganlarga xabar</b>\n\nXabar yozing:",
-            parse_mode="HTML",
-            reply_markup=home_menu()
-        )
+        await q.edit_message_text("📣 <b>Obuna bo'lmaganlarga xabar</b>\n\nXabar yozing:",
+            parse_mode="HTML", reply_markup=home_menu())
 
     elif data == "admin_cancel_sub":
-        if not await is_admin(user):
-            return
+        if not await is_admin(user): return
         context.user_data["admin_cancel_sub"] = True
-        await q.edit_message_text(
-            "❌ <b>Obunani bekor qilish</b>\n\nFoydalanuvchi ID ni yozing:",
-            parse_mode="HTML",
-            reply_markup=home_menu()
-        )
+        await q.edit_message_text("❌ <b>Obunani bekor qilish</b>\n\nFoydalanuvchi ID ni yozing:",
+            parse_mode="HTML", reply_markup=home_menu())
 
     elif data == "admin_promo":
-        if not await is_admin(user):
-            return
+        if not await is_admin(user): return
         context.user_data["admin_promo"] = True
         await q.edit_message_text(
-            "🎟 <b>Promo kod yaratish</b>\n\n"
-            "Format: <code>KOD chegirma% max_foydalanish</code>\n"
-            "Misol: <code>SUMMER30 30 100</code>",
-            parse_mode="HTML",
-            reply_markup=home_menu()
-        )
+            "🎟 <b>Promo kod yaratish</b>\n\nFormat: <code>KOD chegirma% max_foydalanish</code>\nMisol: <code>SUMMER30 30 100</code>",
+            parse_mode="HTML", reply_markup=home_menu())
 
     elif data == "admin_promo_list":
-        if not await is_admin(user):
-            return
+        if not await is_admin(user): return
         promos = await get_all_promos()
         if not promos:
             await q.edit_message_text("Promo kodlar yo'q", reply_markup=admin_main_menu())
@@ -1135,17 +944,14 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(txt, parse_mode="HTML", reply_markup=admin_main_menu())
 
     elif data == "admin_affiliates":
-        if not await is_admin(user):
-            return
+        if not await is_admin(user): return
         affiliates = await get_pending_affiliates()
         if not affiliates:
             await q.edit_message_text("Kutayotgan affiliate yo'q", reply_markup=admin_main_menu())
             return
         for aff in affiliates[:5]:
             await q.message.reply_text(
-                f"🤝 Affiliate so'rovi:\n"
-                f"👤 {aff.get('username', '—')}\n"
-                f"🆔 {aff.get('user_id')}",
+                f"🤝 Affiliate so'rovi:\n👤 {aff.get('username', '—')}\n🆔 {aff.get('user_id')}",
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"aff_approve_{aff['user_id']}"),
                     InlineKeyboardButton("❌ Rad etish",  callback_data=f"aff_reject_{aff['user_id']}"),
@@ -1159,480 +965,306 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ── APPROVE/REJECT ──
     elif data.startswith("approve_"):
-        if not await is_admin(user):
-            return
+        if not await is_admin(user): return
         parts    = data.split("_")
         sub_type = parts[1]
         sub_id   = int(parts[2])
-
         if sub_type == "channel":
             await approve_subscription(sub_id, 0)
         elif sub_type == "screener":
             await approve_screener_sub(sub_id, 0)
         elif sub_type == "premium":
             await approve_premium_sub(sub_id)
-
         await q.edit_message_text(f"✅ #{sub_id} tasdiqlandi!", reply_markup=admin_main_menu())
 
     elif data.startswith("reject_"):
-        if not await is_admin(user):
-            return
+        if not await is_admin(user): return
         parts    = data.split("_")
         sub_type = parts[1]
         sub_id   = int(parts[2])
-
         if sub_type == "channel":
             await reject_subscription(sub_id)
         elif sub_type == "screener":
             await reject_screener_sub(sub_id)
         elif sub_type == "premium":
             await reject_premium_sub(sub_id)
-
         await q.edit_message_text(f"❌ #{sub_id} rad etildi!", reply_markup=admin_main_menu())
 
 
 # ===================== MATN HANDLER =====================
 
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Barcha matn xabarlar"""
     user  = update.effective_user
     text  = (update.message.text or "").strip()
     udata = context.user_data
 
-    # Reply Keyboard tugmalari
     if text in REPLY_SECTIONS:
         await show_section(update, context, REPLY_SECTIONS[text])
         return
-
-    # AI Yordamchi
     if udata.get("ai_mode"):
         await _handle_ai(update, context, text)
         return
-
-    # Screener
     if udata.get("screener_mode"):
         await _handle_screener(update, context, text)
         return
-
-    # Portfel qo'shish
     if udata.get("portfolio_watch"):
         await _handle_portfolio_add(update, context, text)
         return
-
-    # Alert input
     if udata.get("alert_input"):
         await _handle_alert_input(update, context, text)
         return
-
-    # Promo kod
     if udata.get("promo_input"):
         await _handle_promo_input(update, context, text)
         return
-
-    # Kalkulyator
     if udata.get("calc_mode"):
         await _handle_calculator(update, context, text)
         return
-
-    # Admin broadcast
     if udata.get("admin_broadcast") and await is_admin(user):
         await _handle_broadcast(update, context, text, all_users=True)
         return
-
     if udata.get("admin_broadcast_nonsub") and await is_admin(user):
         await _handle_broadcast(update, context, text, all_users=False)
         return
-
-    # Admin promo yaratish
     if udata.get("admin_promo") and await is_admin(user):
         await _handle_create_promo(update, context, text)
         return
-
-    # Admin obuna bekor qilish
     if udata.get("admin_cancel_sub") and await is_admin(user):
         await _handle_cancel_sub(update, context, text)
         return
 
-    # Noma'lum
     admin = await is_admin(user)
-    await update.message.reply_text(
-        WELCOME_TEXT, parse_mode="HTML",
-        reply_markup=main_menu(is_admin=admin)
-    )
+    await update.message.reply_text(WELCOME_TEXT, parse_mode="HTML", reply_markup=main_menu(is_admin=admin))
 
 
 # ===================== MATN SUB-HANDLER LAR =====================
 
 async def _handle_ai(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    """AI Yordamchi"""
     user    = update.effective_user
     udata   = context.user_data
     history = udata.get("ai_history", [])
-
-    # Kunlik limit tekshirish
     can_use = await check_daily_limit(user.id, "ai", FREE_DAILY_AI_LIMIT)
     if not can_use and not await has_any_paid_sub(user.id):
         await update.message.reply_text(
-            f"⏰ Kunlik AI limitingiz ({FREE_DAILY_AI_LIMIT} ta) tugadi!\n\n"
-            "Ertaga yangilanadi yoki obuna oling.",
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("💎 Obuna olish", callback_data="sec_premium")
-            ]])
+            f"⏰ Kunlik AI limitingiz ({FREE_DAILY_AI_LIMIT} ta) tugadi!\n\nErtaga yangilanadi yoki obuna oling.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💎 Obuna olish", callback_data="sec_premium")]])
         )
         return
-
-    await context.bot.send_chat_action(
-        chat_id=update.effective_chat.id,
-        action="typing"
-    )
-
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
     response = ai_service.answer_question(text, history)
-
     if not response:
         response = "Hozircha AI xizmati mavjud emas. Tez orada ulanadi!"
-
-    history.append({"role": "user",      "content": text})
+    history.append({"role": "user", "content": text})
     history.append({"role": "assistant", "content": response})
     if len(history) > 10:
         history = history[-10:]
-
     udata["ai_history"] = history
     udata["ai_mode"]    = True
-
-    # Limit hisoblash (bepul foydalanuvchilar uchun)
     if not await has_any_paid_sub(user.id):
         await increment_daily_limit(user.id, "ai")
-
-    await update.message.reply_text(
-        response, parse_mode="HTML",
-        reply_markup=home_menu()
-    )
+    await update.message.reply_text(response, parse_mode="HTML", reply_markup=home_menu())
 
 
 async def _handle_screener(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    """Screener input"""
-    user    = update.effective_user
-    udata   = context.user_data
-    mode    = udata.get("screener_mode")
-    ticker  = text.upper().strip()
-
+    user   = update.effective_user
+    udata  = context.user_data
+    mode   = udata.get("screener_mode")
+    ticker = text.upper().strip()
     if not ticker or len(ticker) > 10:
         await update.message.reply_text("❌ Noto'g'ri ticker!")
         return
-
     is_free = mode == "free"
-
-    # Kunlik limit (bepul uchun)
     if is_free:
         can_use = await check_daily_limit(user.id, "screener", FREE_DAILY_SCREENER_LIMIT)
         if not can_use:
             await update.message.reply_text(
-                f"⏰ Kunlik screener limitingiz ({FREE_DAILY_SCREENER_LIMIT} ta) tugadi!\n\n"
-                "Ertaga yangilanadi yoki obuna oling.",
-                reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("💎 Obuna olish", callback_data="sec_premium")
-                ]])
+                f"⏰ Kunlik screener limitingiz ({FREE_DAILY_SCREENER_LIMIT} ta) tugadi!\n\nErtaga yangilanadi yoki obuna oling.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💎 Obuna olish", callback_data="sec_premium")]])
             )
             return
-
-    await update.message.reply_text(
-        f"🔍 <b>{ticker}</b> tahlil qilinmoqda...",
-        parse_mode="HTML"
-    )
-
-    # Crypto yoki Aksiya?
+    await update.message.reply_text(f"🔍 <b>{ticker}</b> tahlil qilinmoqda...", parse_mode="HTML")
     from config import CRYPTO_TICKER_MAP
     is_crypto = ticker in CRYPTO_TICKER_MAP or mode == "crypto"
-    is_stock  = mode == "stock"
-
     if mode == "sentiment":
         result = sentiment_service.get_sentiment_report(ticker)
         udata.pop("screener_mode", None)
-        await update.message.reply_text(
-            result, parse_mode="HTML",
-            reply_markup=section_back_menu("sec_onchain"),
-            disable_web_page_preview=True
-        )
+        await update.message.reply_text(result, parse_mode="HTML",
+            reply_markup=section_back_menu("sec_onchain"), disable_web_page_preview=True)
         return
-
     if is_crypto:
         result = crypto_service.get_screener_result(ticker, is_free=is_free)
         ticker_type = "crypto"
     else:
         result = stock_service.get_screener_result(ticker, is_free=is_free)
         ticker_type = "stock"
-
     if not result:
-        await update.message.reply_text(
-            f"❌ <b>{ticker}</b> topilmadi.\n\nTicker to'g'ri ekanligini tekshiring.",
-            parse_mode="HTML"
-        )
+        await update.message.reply_text(f"❌ <b>{ticker}</b> topilmadi.\n\nTicker to'g'ri ekanligini tekshiring.", parse_mode="HTML")
         return
-
-    # AI tahlil qo'shish (pullik uchun)
     if not is_free and await has_any_paid_sub(user.id):
         ai_analysis = ai_service.analyze_screener(ticker, result, ticker_type)
         if ai_analysis:
             result += f"\n\n{ai_analysis}"
-
-    # Limit hisoblash (bepul uchun)
     if is_free:
         await increment_daily_limit(user.id, "screener")
-        await update.message.reply_text(
-            result, parse_mode="HTML",
-            reply_markup=free_screener_result_menu(),
-            disable_web_page_preview=True
-        )
-
-        # Kanalga yuborish
+        await update.message.reply_text(result, parse_mode="HTML",
+            reply_markup=free_screener_result_menu(), disable_web_page_preview=True)
         public_channel = CHANNEL_IDS.get("public")
         if public_channel:
             try:
-                channel_txt = result + f"\n\n📊 <i>@azia_quant_bot orqali tahlil qilindi</i>"
                 await update.message.bot.send_message(
                     chat_id=public_channel,
-                    text=channel_txt,
-                    parse_mode="HTML",
-                    disable_web_page_preview=True
+                    text=result + f"\n\n📊 <i>@azia_quant_bot orqali tahlil qilindi</i>",
+                    parse_mode="HTML", disable_web_page_preview=True
                 )
             except Exception as e:
                 logger.error(f"Kanalga yuborish xato: {e}")
     else:
         udata.pop("screener_mode", None)
-        await update.message.reply_text(
-            result, parse_mode="HTML",
-            reply_markup=screener_action_menu(ticker, ticker_type),
-            disable_web_page_preview=True
-        )
+        await update.message.reply_text(result, parse_mode="HTML",
+            reply_markup=screener_action_menu(ticker, ticker_type), disable_web_page_preview=True)
 
 
 async def _handle_portfolio_add(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    """Portfelga aktiv qo'shish"""
     user   = update.effective_user
     ticker = text.upper().strip()
-
     if not ticker or len(ticker) > 10:
         await update.message.reply_text("❌ Noto'g'ri ticker!")
         return
-
     from config import CRYPTO_TICKER_MAP
     t_type = "crypto" if ticker in CRYPTO_TICKER_MAP else "stock"
-
     await add_portfolio(user.id, ticker, t_type, 0, 0)
     context.user_data.pop("portfolio_watch", None)
-
     await update.message.reply_text(
         f"✅ <b>{ticker}</b> qabul qilindi!\n\nYana aktiv qo'shmoqchimisiz?",
         parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("✅ Ha",  callback_data="portfolio_watch_new"),
-                InlineKeyboardButton("❌ Yo'q", callback_data="portfolio_watch_done"),
-            ]
-        ])
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ Ha",   callback_data="portfolio_watch_new"),
+            InlineKeyboardButton("❌ Yo'q", callback_data="portfolio_watch_done"),
+        ]])
     )
 
 
 async def _handle_alert_input(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    """Alert qiymat kiritish"""
     user  = update.effective_user
     udata = context.user_data
-
     try:
         value = float(text.replace(",", "."))
     except ValueError:
         await update.message.reply_text("❌ Raqam kiriting!")
         return
-
     ticker    = udata.get("alert_ticker", "")
     t_type    = udata.get("alert_ticker_type", "crypto")
     a_type    = udata.get("alert_type", "price")
     condition = udata.get("alert_condition", "above")
-
     await save_alert(user.id, ticker, t_type, a_type, condition, value)
-
     for key in ["alert_ticker", "alert_ticker_type", "alert_type", "alert_condition", "alert_input"]:
         udata.pop(key, None)
-
     cond_txt = "dan yuqori" if condition == "above" else "dan past"
     await update.message.reply_text(
-        f"✅ <b>Ogohlantirish o'rnatildi!</b>\n\n"
-        f"📌 {ticker} — {a_type} {value} {cond_txt} bo'lganda xabar beraman.",
-        parse_mode="HTML",
-        reply_markup=home_menu()
-    )
+        f"✅ <b>Ogohlantirish o'rnatildi!</b>\n\n📌 {ticker} — {a_type} {value} {cond_txt} bo'lganda xabar beraman.",
+        parse_mode="HTML", reply_markup=home_menu())
 
 
 async def _handle_promo_input(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    """Promo kod kiritish"""
     user  = update.effective_user
     udata = context.user_data
-
     promo = await check_promo(text.strip().upper(), user.id)
     if not promo:
-        await update.message.reply_text(
-            "❌ Promo kod topilmadi yoki allaqachon ishlatilgan!",
-            reply_markup=home_menu()
-        )
+        await update.message.reply_text("❌ Promo kod topilmadi yoki allaqachon ishlatilgan!", reply_markup=home_menu())
         udata.pop("promo_input", None)
         return
-
-    discount = promo["discount"]
-    price    = udata.get("promo_price", 0)
+    discount  = promo["discount"]
+    price     = udata.get("promo_price", 0)
     new_price = int(price * (1 - discount / 100))
-
     await use_promo(text.strip().upper(), user.id)
     udata.pop("promo_input", None)
-
     await update.message.reply_text(
         f"🎉 <b>Promo kod qabul qilindi!</b>\n\n"
         f"💰 Yangi narx: <b>${new_price}</b> ({discount}% chegirma)\n\n"
         f"💳 Karta: <code>{CARD_NUMBER}</code>\n"
         f"👤 Egasi: <b>{CARD_OWNER}</b>\n\n"
         f"📸 To'lov chekini yuboring!",
-        parse_mode="HTML",
-        reply_markup=home_menu()
-    )
+        parse_mode="HTML", reply_markup=home_menu())
 
 
 async def _handle_calculator(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    """Kalkulyator hisoblash"""
     udata = context.user_data
     mode  = udata.get("calc_mode")
-
     try:
         nums = [float(x) for x in text.split()]
-
         if mode == "rr" and len(nums) >= 3:
             entry, stop, target = nums[0], nums[1], nums[2]
             risk   = abs(entry - stop)
             reward = abs(target - entry)
             rr     = reward / risk if risk > 0 else 0
-            result = (
-                f"⚖️ <b>Risk/Reward</b>\n\n"
-                f"• Kirish: ${entry:,.2f}\n"
-                f"• Stop: ${stop:,.2f}\n"
-                f"• Maqsad: ${target:,.2f}\n"
-                f"• Risk: ${risk:,.2f}\n"
-                f"• Reward: ${reward:,.2f}\n"
-                f"• R/R: 1:{rr:.2f}"
-            )
-
+            result = (f"⚖️ <b>Risk/Reward</b>\n\n• Kirish: ${entry:,.2f}\n• Stop: ${stop:,.2f}\n"
+                      f"• Maqsad: ${target:,.2f}\n• Risk: ${risk:,.2f}\n• Reward: ${reward:,.2f}\n• R/R: 1:{rr:.2f}")
         elif mode == "position" and len(nums) >= 3:
             capital, risk_pct, stop_pct = nums[0], nums[1], nums[2]
-            risk_amount  = capital * risk_pct / 100
-            position     = risk_amount / (stop_pct / 100)
-            result = (
-                f"📏 <b>Pozitsiya Hajmi</b>\n\n"
-                f"• Kapital: ${capital:,.2f}\n"
-                f"• Risk: {risk_pct}% = ${risk_amount:,.2f}\n"
-                f"• Stop: {stop_pct}%\n"
-                f"• Pozitsiya: ${position:,.2f}"
-            )
-
+            risk_amount = capital * risk_pct / 100
+            position    = risk_amount / (stop_pct / 100)
+            result = (f"📏 <b>Pozitsiya Hajmi</b>\n\n• Kapital: ${capital:,.2f}\n• Risk: {risk_pct}% = ${risk_amount:,.2f}\n"
+                      f"• Stop: {stop_pct}%\n• Pozitsiya: ${position:,.2f}")
         elif mode == "compound" and len(nums) >= 3:
             capital, rate, months = nums[0], nums[1], int(nums[2])
             final  = capital * (1 + rate / 100) ** months
             profit = final - capital
-            result = (
-                f"📈 <b>Compound Foiz</b>\n\n"
-                f"• Boshlang'ich: ${capital:,.2f}\n"
-                f"• Oylik foiz: {rate}%\n"
-                f"• Muddat: {months} oy\n"
-                f"• Yakuniy: ${final:,.2f}\n"
-                f"• Foyda: ${profit:,.2f}"
-            )
-
+            result = (f"📈 <b>Compound Foiz</b>\n\n• Boshlang'ich: ${capital:,.2f}\n• Oylik foiz: {rate}%\n"
+                      f"• Muddat: {months} oy\n• Yakuniy: ${final:,.2f}\n• Foyda: ${profit:,.2f}")
         elif mode == "breakeven" and len(nums) >= 2:
             price, commission = nums[0], nums[1]
             buy_price  = price * (1 + commission / 100)
             sell_price = buy_price * (1 + commission / 100)
-            result = (
-                f"🎯 <b>Break-even</b>\n\n"
-                f"• Sotib olish: ${price:,.2f}\n"
-                f"• Komissiya: {commission}%\n"
-                f"• Break-even: ${sell_price:,.2f}"
-            )
+            result = (f"🎯 <b>Break-even</b>\n\n• Sotib olish: ${price:,.2f}\n• Komissiya: {commission}%\n"
+                      f"• Break-even: ${sell_price:,.2f}")
         else:
             await update.message.reply_text("❌ Format noto'g'ri!")
             return
-
         udata.pop("calc_mode", None)
-        await update.message.reply_text(
-            result, parse_mode="HTML",
-            reply_markup=section_back_menu("free_calc")
-        )
-
+        await update.message.reply_text(result, parse_mode="HTML", reply_markup=section_back_menu("free_calc"))
     except (ValueError, ZeroDivisionError):
         await update.message.reply_text("❌ Raqamlarni to'g'ri kiriting!")
 
 
-async def _handle_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE,
-                              text: str, all_users: bool):
-    """Broadcast xabar"""
+async def _handle_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, all_users: bool):
     if all_users:
         users_list = await get_all_users()
         context.user_data.pop("admin_broadcast", None)
     else:
         users_list = await get_non_subscribers()
         context.user_data.pop("admin_broadcast_nonsub", None)
-
     success = failed = 0
     await update.message.reply_text(f"📢 Yuborilmoqda... ({len(users_list)} ta)")
-
     for u in users_list:
         try:
-            await context.bot.send_message(
-                chat_id=u["user_id"],
-                text=text, parse_mode="HTML"
-            )
+            await context.bot.send_message(chat_id=u["user_id"], text=text, parse_mode="HTML")
             success += 1
             await asyncio.sleep(0.05)
         except:
             failed += 1
-
-    await update.message.reply_text(
-        f"✅ Yuborildi: {success} ta\n❌ Xato: {failed} ta",
-        reply_markup=admin_main_menu()
-    )
+    await update.message.reply_text(f"✅ Yuborildi: {success} ta\n❌ Xato: {failed} ta", reply_markup=admin_main_menu())
 
 
 async def _handle_create_promo(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    """Promo kod yaratish"""
     try:
         parts    = text.split()
         code     = parts[0].upper()
         discount = int(parts[1])
         max_uses = int(parts[2]) if len(parts) > 2 else 100
-
         await create_promo(code, discount, max_uses)
         context.user_data.pop("admin_promo", None)
-
         await update.message.reply_text(
-            f"✅ Promo kod yaratildi!\n\n"
-            f"Kod: <code>{code}</code>\n"
-            f"Chegirma: {discount}%\n"
-            f"Max foydalanish: {max_uses}",
-            parse_mode="HTML",
-            reply_markup=admin_main_menu()
-        )
+            f"✅ Promo kod yaratildi!\n\nKod: <code>{code}</code>\nChegirma: {discount}%\nMax foydalanish: {max_uses}",
+            parse_mode="HTML", reply_markup=admin_main_menu())
     except (IndexError, ValueError):
-        await update.message.reply_text(
-            "❌ Format: <code>KOD chegirma% max_foydalanish</code>",
-            parse_mode="HTML"
-        )
+        await update.message.reply_text("❌ Format: <code>KOD chegirma% max_foydalanish</code>", parse_mode="HTML")
 
 
 async def _handle_cancel_sub(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    """Obunani bekor qilish"""
     try:
         uid = int(text.strip())
         await cancel_user_subscription(uid)
         context.user_data.pop("admin_cancel_sub", None)
-        await update.message.reply_text(
-            f"✅ #{uid} obunasi bekor qilindi!",
-            reply_markup=admin_main_menu()
-        )
+        await update.message.reply_text(f"✅ #{uid} obunasi bekor qilindi!", reply_markup=admin_main_menu())
     except ValueError:
         await update.message.reply_text("❌ ID raqam kiriting!")
 
@@ -1640,35 +1272,26 @@ async def _handle_cancel_sub(update: Update, context: ContextTypes.DEFAULT_TYPE,
 # ===================== RASM HANDLER =====================
 
 async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Rasm qabul qilish (to'lov cheki + broadcast)"""
     user  = update.effective_user
     udata = context.user_data
 
-    # Admin broadcast rasm bilan
     if udata.get("admin_broadcast") and await is_admin(user):
         udata.pop("admin_broadcast", None)
-        caption = update.message.caption or ""
+        caption    = update.message.caption or ""
         users_list = await get_all_users()
         success = failed = 0
         photo = update.message.photo[-1].file_id
         await update.message.reply_text(f"📢 Yuborilmoqda... ({len(users_list)} ta)")
         for u in users_list:
             try:
-                await context.bot.send_photo(
-                    chat_id=u["user_id"], photo=photo,
-                    caption=caption, parse_mode="HTML"
-                )
+                await context.bot.send_photo(chat_id=u["user_id"], photo=photo, caption=caption, parse_mode="HTML")
                 success += 1
                 await asyncio.sleep(0.05)
             except:
                 failed += 1
-        await update.message.reply_text(
-            f"✅ Yuborildi: {success} ta\n❌ Xato: {failed} ta",
-            reply_markup=admin_main_menu()
-        )
+        await update.message.reply_text(f"✅ Yuborildi: {success} ta\n❌ Xato: {failed} ta", reply_markup=admin_main_menu())
         return
 
-    # Admin broadcast_nonsub rasm bilan
     if udata.get("admin_broadcast_nonsub") and await is_admin(user):
         udata.pop("admin_broadcast_nonsub", None)
         caption = update.message.caption or ""
@@ -1678,44 +1301,30 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📣 Yuborilmoqda... ({len(nonsubs)} ta)")
         for u in nonsubs:
             try:
-                await context.bot.send_photo(
-                    chat_id=u["user_id"], photo=photo,
-                    caption=caption, parse_mode="HTML"
-                )
+                await context.bot.send_photo(chat_id=u["user_id"], photo=photo, caption=caption, parse_mode="HTML")
                 success += 1
                 await asyncio.sleep(0.05)
             except:
                 failed += 1
-        await update.message.reply_text(
-            f"✅ Yuborildi: {success} ta\n❌ Xato: {failed} ta",
-            reply_markup=admin_main_menu()
-        )
+        await update.message.reply_text(f"✅ Yuborildi: {success} ta\n❌ Xato: {failed} ta", reply_markup=admin_main_menu())
         return
 
-    # To'lov cheki
     if not udata.get("waiting_payment"):
         return
 
-    sub_type      = udata.get("sub_type", "channel")
-    sub_id        = udata.get("sub_id")
-    scr_sub_id    = udata.get("scr_sub_id")
+    sub_type       = udata.get("sub_type", "channel")
+    sub_id         = udata.get("sub_id")
+    scr_sub_id     = udata.get("scr_sub_id")
     premium_sub_id = udata.get("premium_sub_id")
 
-    # Validatsiya
-    if sub_type == "channel" and not sub_id:
-        return
-    if sub_type == "onchain_screener" and not scr_sub_id:
-        return
-    if sub_type == "premium" and not premium_sub_id:
-        return
+    if sub_type == "channel" and not sub_id: return
+    if sub_type == "onchain_screener" and not scr_sub_id: return
+    if sub_type == "premium" and not premium_sub_id: return
 
-    # Adminlarga yuborish
-    admin_ids_list = list(ADMIN_IDS)
-
-    the_sub_id = sub_id or scr_sub_id or premium_sub_id
+    the_sub_id   = sub_id or scr_sub_id or premium_sub_id
     approve_type = sub_type
 
-    for admin_id in set(admin_ids_list):
+    for admin_id in set(ADMIN_IDS):
         try:
             await context.bot.send_photo(
                 chat_id=admin_id,
@@ -1735,18 +1344,13 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     udata["waiting_payment"] = False
     await update.message.reply_text(
-        "✅ <b>Chek qabul qilindi!</b>\n\n"
-        "Admin 24 soat ichida tasdiqlaydi.\n"
-        "Tasdiqlanganda xabar keladi!",
-        parse_mode="HTML",
-        reply_markup=home_menu()
-    )
+        "✅ <b>Chek qabul qilindi!</b>\n\nAdmin 24 soat ichida tasdiqlaydi.\nTasdiqlanganda xabar keladi!",
+        parse_mode="HTML", reply_markup=home_menu())
 
 
 # ===================== YORDAMCHI =====================
 
 def _get_daily_lesson() -> str:
-    """Kunlik dars"""
     lessons = [
         "📚 <b>Bugungi dars: RSI nima?</b>\n\nRSI (Relative Strength Index) — narx harakatining kuchini o'lchaydigan indikator.\n\n• RSI > 70 = Overbought (qimmat)\n• RSI < 30 = Oversold (arzon)\n• RSI = 50 = Neytral",
         "📚 <b>Bugungi dars: Support va Resistance</b>\n\nSupport — narx tushganda to'xtaydigan daraja.\nResistance — narx ko'tarilganda to'xtaydigan daraja.\n\n💡 Bu darajalar muhim qaror qabul qilish nuqtalari.",
@@ -1761,9 +1365,7 @@ def _get_daily_lesson() -> str:
 # ===================== PERIODIY VAZIFALAR =====================
 
 async def check_expired_subs(context: ContextTypes.DEFAULT_TYPE):
-    """Muddati tugagan obunalarni tekshirish"""
     try:
-        # Signals
         expired = await get_expired_subscriptions()
         for sub in expired:
             await mark_expired(sub["user_id"], sub["sub_type"])
@@ -1777,12 +1379,9 @@ async def check_expired_subs(context: ContextTypes.DEFAULT_TYPE):
                 )
             except:
                 pass
-
-        # Screener
         expired_scr = await get_expired_screener_subs()
         for sub in expired_scr:
             await mark_screener_expired(sub["user_id"])
-
     except Exception as e:
         logger.error(f"Expired subs xato: {e}")
 
@@ -1791,31 +1390,17 @@ async def check_expired_subs(context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     init_db()
-
     app = Application.builder().token(BOT_TOKEN).build()
-
-    # Handlerlar
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button))
     app.add_handler(MessageHandler(filters.PHOTO, photo_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-
-    # Periodiy vazifalar
     jq = app.job_queue
-
-    # Har 5 daqiqada alertlar
-    jq.run_repeating(check_alerts, interval=300, first=60)
-
-    # Har 30 daqiqada portfel yangiliklari
-    jq.run_repeating(check_portfolio_news, interval=1800, first=120)
-
-    # Har kuni 08:00 da kunlik brifing
+    jq.run_repeating(check_alerts,          interval=300,  first=60)
+    jq.run_repeating(check_portfolio_news,  interval=1800, first=120)
+    jq.run_repeating(check_expired_subs,    interval=3600, first=300)
     import datetime
     jq.run_daily(send_daily_briefing, time=datetime.time(hour=8, minute=0))
-
-    # Har soatda muddati tugagan obunalar
-    jq.run_repeating(check_expired_subs, interval=3600, first=300)
-
     logger.info("[SUCCESS] Azia Quant Bot ishga tushdi! 🚀")
     app.run_polling(drop_pending_updates=True)
 
